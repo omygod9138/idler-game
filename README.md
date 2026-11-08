@@ -75,5 +75,6 @@ styles, Exploration Post, shop/auction, taskbar "desktop companion" window, Idle
 
 ## Deploy
 
-`.github/workflows/pages.yml` builds and deploys to GitHub Pages on every push to `main`
+- `ci.yml`: tests + typecheck/build on every pull request and non-`main` branch push.
+- `pages.yml`: tests, builds and deploys to GitHub Pages on every push to `main` (i.e. every merged PR)
 (`GITHUB_PAGES=true` sets the Vite base to `/idler-game/`). URL: https://omygod9138.github.io/idler-game/
