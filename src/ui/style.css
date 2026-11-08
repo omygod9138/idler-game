@@ -1,0 +1,51 @@
+:root {
+  --bg: #1a1424;
+  --panel: #2a2238;
+  --panel-2: #3a3048;
+  --line: #0e0a14;
+  --hi: #5a4a72;
+  --text: #f2ead8;
+  --muted: #a89cba;
+  --gold: #ffd54a;
+  --good: #5ad65a;
+  --bad: #e04a4a;
+  --blue: #4fa3ff;
+  --px: 'Press Start 2P', monospace;
+  --body: 'VT323', monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 20px; }
+img, canvas { image-rendering: pixelated; }
+button { font: inherit; }
+
+/* pixel panel: hard 2px border + inset highlight */
+.panel {
+  background: var(--panel);
+  border: 2px solid var(--line);
+  box-shadow: inset 2px 2px 0 var(--hi), inset -2px -2px 0 #1e1828;
+  padding: 10px;
+}
+.btn {
+  font-family: var(--px); font-size: 10px; color: var(--text);
+  background: var(--panel-2); border: 2px solid var(--line);
+  box-shadow: inset 2px 2px 0 #6a5a85, inset -2px -2px 0 #241c30;
+  padding: 7px 10px; cursor: pointer; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: #4a3e5c; }
+.btn:active:not(:disabled) { box-shadow: inset -2px -2px 0 #6a5a85, inset 2px 2px 0 #241c30; transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: #8a5a1a; box-shadow: inset 2px 2px 0 #c9883a, inset -2px -2px 0 #5a3a10; }
+.btn.primary:hover:not(:disabled) { background: #9a6a2a; }
+.btn.danger { background: #7a2a2a; box-shadow: inset 2px 2px 0 #b84a4a, inset -2px -2px 0 #4a1a1a; }
+.btn.sm { font-size: 8px; padding: 5px 7px; }
+.btn.on { background: #3a6a3a; box-shadow: inset 2px 2px 0 #5ad65a, inset -2px -2px 0 #1d3a1d; }
+.h { font-family: var(--px); font-size: 11px; margin: 0 0 10px; color: var(--gold); letter-spacing: 1px; }
+.muted { color: var(--muted); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.grid { display: grid; gap: 10px; }
+.bar { height: 8px; background: #120e18; border: 2px solid var(--line); position: relative; }
+.bar > i { position: absolute; inset: 0; right: auto; background: var(--gold); }
+.tag { font-family: var(--px); font-size: 8px; padding: 2px 5px; border: 2px solid var(--line); background: #241c30; }
+.pot-S { color: #ff4f6d; } .pot-A { color: #ffb22e; } .pot-B { color: #b45cff; } .pot-C { color: #4fa3ff; }
+.pot-D { color: #7cff8a; } .pot-E, .pot-F { color: #a89cba; }
+.scroll { overflow: auto; }
