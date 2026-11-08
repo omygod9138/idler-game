@@ -16,7 +16,7 @@ const AFTERMATH = 1.0
 interface Floater { x: number; y: number; text: string; color: string; t: number; ttl: number }
 interface Projectile { x0: number; x1: number; y: number; t: number; ttl: number; color: string }
 interface Burst { x: number; r: number; t: number; ttl: number; color: string; label: string }
-interface UnitFx { anim: Anim; clip?: Clip; t: number; fps: number; hurt: number; lastX: number; deathT: number }
+interface UnitFx { anim: Anim; clip?: Clip; t: number; fps: number; hurt: number; flashCd: number; lastX: number; deathT: number }
 
 interface LaneFx {
   battle: BattleState | null
@@ -117,8 +117,11 @@ export class Renderer {
         case 'damage': {
           const d = byId.get(e.dst)
           if (!d) break
-          this.unitFx(fx, d).hurt = 0.12
-          fx.floaters.push({ x: d.x + rnd(-3, 3), y: this.topY(d) - 6, text: `${e.amount}${e.crit ? '!' : ''}`, color: e.crit ? '#ffd54a' : d.side === 'ally' ? '#ff6a6a' : '#ffffff', t: 0, ttl: 0.8 })
+          const uf = this.unitFx(fx, d)
+          // short flash with a cooldown: at high hit rates a unit would otherwise stay white
+          if (uf.flashCd <= 0) { uf.hurt = 0.06; uf.flashCd = 0.3 }
+          if (fx.floaters.length > 10) fx.floaters.shift()
+          fx.floaters.push({ x: d.x + rnd(-6, 6), y: this.topY(d) - 6 - rnd(0, 4), text: `${e.amount}${e.crit ? '!' : ''}`, color: e.crit ? '#ffd54a' : d.side === 'ally' ? '#ff6a6a' : '#ffffff', t: 0, ttl: 0.6 })
           break
         }
         case 'heal': {
@@ -144,7 +147,7 @@ export class Renderer {
 
   private unitFx(fx: LaneFx, u: Combatant): UnitFx {
     let f = fx.fx.get(u.uid)
-    if (!f) { f = { anim: 'idle', t: Math.random(), fps: FPS, hurt: 0, lastX: u.x, deathT: 0 }; fx.fx.set(u.uid, f) }
+    if (!f) { f = { anim: 'idle', t: Math.random(), fps: FPS, hurt: 0, flashCd: 0, lastX: u.x, deathT: 0 }; fx.fx.set(u.uid, f) }
     return f
   }
 
@@ -220,6 +223,7 @@ export class Renderer {
     for (const u of units) {
       const f = this.unitFx(fx, u)
       f.hurt = Math.max(0, f.hurt - dt)
+      f.flashCd -= dt
       f.t += dt
       const a = art(u.classId)
       const flip = u.side === 'enemy'
