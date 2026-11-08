@@ -16,7 +16,7 @@ const AFTERMATH = 1.0
 interface Floater { x: number; y: number; text: string; color: string; t: number; ttl: number }
 interface Projectile { x0: number; x1: number; y: number; t: number; ttl: number; color: string }
 interface Burst { x: number; r: number; t: number; ttl: number; color: string; label: string }
-interface UnitFx { anim: Anim; clip?: Clip; t: number; hurt: number; lastX: number; deathT: number }
+interface UnitFx { anim: Anim; clip?: Clip; t: number; fps: number; hurt: number; lastX: number; deathT: number }
 
 interface LaneFx {
   battle: BattleState | null
@@ -144,7 +144,7 @@ export class Renderer {
 
   private unitFx(fx: LaneFx, u: Combatant): UnitFx {
     let f = fx.fx.get(u.uid)
-    if (!f) { f = { anim: 'idle', t: Math.random(), hurt: 0, lastX: u.x, deathT: 0 }; fx.fx.set(u.uid, f) }
+    if (!f) { f = { anim: 'idle', t: Math.random(), fps: FPS, hurt: 0, lastX: u.x, deathT: 0 }; fx.fx.set(u.uid, f) }
     return f
   }
 
@@ -154,6 +154,8 @@ export class Renderer {
     f.anim = anim
     f.t = 0
     f.clip = a ? (named && Object.entries(a.extra).find(([n]) => named.test(n))?.[1]) || a.anims[anim] : undefined
+    // an attack swing must finish before the next one starts
+    f.fps = anim === 'attack' && f.clip ? Math.max(FPS, f.clip.frames.length / (u.stats.interval * 0.9)) : FPS
   }
 
   // ---------- geometry ----------
@@ -230,7 +232,7 @@ export class Renderer {
         if (fade > 0.5) continue
         c.globalAlpha = 1 - fade / 0.5
       } else if (f.anim === 'attack' || f.anim === 'death') {
-        if (!f.clip || f.t >= f.clip.frames.length / FPS) { f.anim = 'idle'; f.clip = undefined }
+        if (!f.clip || f.t >= f.clip.frames.length / f.fps) { f.anim = 'idle'; f.clip = undefined; f.fps = FPS }
       }
       if (u.alive && f.anim !== 'attack') {
         const moving = Math.abs(u.x - f.lastX) > 0.01
@@ -242,7 +244,7 @@ export class Renderer {
       if (a) {
         const clip = f.clip ?? (u.alive ? a.still : a.anims.death ?? a.still)
         const loop = f.anim === 'idle' || f.anim === 'walk'
-        this.drawClip(a, clip, frameAt(clip, f.t, loop), u.x, fy, flip, f.hurt > 0)
+        this.drawClip(a, clip, frameAt(clip, f.t, loop, f.fps), u.x, fy, flip, f.hurt > 0)
       } else this.drawFallback(u.classId, u.x, fy, flip, f.hurt > 0)
       c.globalAlpha = 1
       if (u.alive) this.bars(u, this.topY(u) - 4)
@@ -328,9 +330,9 @@ export class Renderer {
   }
 }
 
-function frameAt(clip: Clip, t: number, loop: boolean) {
+function frameAt(clip: Clip, t: number, loop: boolean, fps = FPS) {
   const n = clip.frames.length
-  const i = Math.floor(t * FPS)
+  const i = Math.floor(t * fps)
   return loop ? i % n : Math.min(n - 1, i)
 }
 /** Snap to whole device pixels. */

@@ -5,8 +5,9 @@ import type { Rng } from './rng'
 // 1-D lane auto-battle. Allies on the left facing right, enemies on the right.
 export const LANE_WIDTH = 400
 export const BATTLE_TIMEOUT = 60
-const ENERGY_PER_ATTACK = 25
-const ENERGY_PER_HIT = 8
+// halved with the 2x attack speed so skills keep roughly the same cadence in seconds
+const ENERGY_PER_ATTACK = 16
+const ENERGY_PER_HIT = 5
 const MAX_EVENTS = 300
 
 export interface CombatantSpec {
@@ -30,7 +31,8 @@ function place(b: BattleState, specs: CombatantSpec[], side: Side, rng: Rng) {
   for (const s of specs) {
     const row = getClass(s.classId).row
     const slot = row === 'front' ? front++ : back++
-    const offset = (row === 'front' ? 120 : 64) - slot * 22
+    // start close to the centre so melee meets in ~1s instead of ~3s
+    const offset = (row === 'front' ? 160 : 108) - slot * 22
     const x = side === 'ally' ? offset : LANE_WIDTH - offset
     const u: Combatant = {
       uid: ++b.uidCounter, side, ref: s.ref, name: s.name, classId: s.classId, level: s.level,

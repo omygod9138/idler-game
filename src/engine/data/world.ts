@@ -57,6 +57,10 @@ export const OUTPOSTS: OutpostDef[] = [
   },
 ]
 
+// ---- Global combat tuning (applied in computeStats) ----
+// attackSpeed divides every attack interval; hp scales HP for both sides so win rates stay where they were (fights just have more hits).
+export const TUNING = { attackSpeed: 2, hp: 2 }
+
 // ---- Potential grades (stat multiplier). F/C/S match reference; others interpolated. ----
 export const POTENTIAL_MULT: Record<Potential, number> = {
   F: 0.75, E: 0.83, D: 0.92, C: 1.0, B: 1.08, A: 1.16, S: 1.25,

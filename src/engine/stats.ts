@@ -1,6 +1,6 @@
 import type { Duelist, Gear, Potential, Stats } from './types'
 import { getClass } from './data/classes'
-import { POTENTIAL_MULT } from './data/world'
+import { POTENTIAL_MULT, TUNING } from './data/world'
 
 /** Final combat stats = (base + growth*(lvl-1)) * potential + flat gear. */
 export function computeStats(
@@ -14,7 +14,8 @@ export function computeStats(
   const l = level - 1
   const s: Stats = {
     ...c.base,
-    hp: Math.round((c.base.hp + c.growth.hp * l) * m),
+    interval: c.base.interval / TUNING.attackSpeed,
+    hp: Math.round((c.base.hp + c.growth.hp * l) * m * TUNING.hp),
     atk: Math.round((c.base.atk + c.growth.atk * l) * m),
     def: Math.round((c.base.def + c.growth.def * l) * m),
   }
