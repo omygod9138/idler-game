@@ -50,6 +50,11 @@ function fmtTime(s: number) {
       <component :is="tabs.find((t) => t.id === tab)!.comp" />
     </main>
 
+    <footer class="disclaimer muted">
+      Fan-made educational prototype inspired by Duelist: Idle Expedition. Not affiliated with
+      One Interactive Studio or Infini Fun. No user data is collected; progress is saved in your browser only.
+    </footer>
+
     <div v-if="toastVisible && game.toast" class="toast panel">{{ game.toast.text }}</div>
 
     <div v-if="game.offline" class="modal-bg" @click.self="game.offline = null">
@@ -70,6 +75,7 @@ function fmtTime(s: number) {
 
 <style scoped>
 .app { max-width: 1460px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.disclaimer { font-size: 16px; text-align: center; padding: 8px 0 4px; }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .content { min-height: 360px; }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); font-family: var(--px); font-size: 10px; color: var(--gold); z-index: 20; }
