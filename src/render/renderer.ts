@@ -1,19 +1,27 @@
-import type { BattleState, Combatant, GameState, LaneState } from '@/engine/types'
+import type { BattleState, Combatant, GameState, LaneState, SkillKind } from '@/engine/types'
 import { getClass } from '@/engine/data/classes'
 import { LANE_WIDTH } from '@/engine/battle'
 import { OUTPOSTS } from '@/engine/data/world'
 import { drawDigits, getSprite } from './sprites'
+import { art, type Anim, type ArtSet, type Clip } from './art'
 
-export const LANE_H = 72
-const GROUND_Y = 50
+/** Lane size in world units; the canvas draws RES device pixels per unit so 64px art stays ~1:1. */
+export const LANE_H = 80
+const RES = 2
+const GROUND_Y = 54
+const FPS = 12
+/** Keep drawing a finished battle this long so the last death animation plays out. */
+const AFTERMATH = 1.0
 
 interface Floater { x: number; y: number; text: string; color: string; t: number; ttl: number }
 interface Projectile { x0: number; x1: number; y: number; t: number; ttl: number; color: string }
 interface Burst { x: number; r: number; t: number; ttl: number; color: string; label: string }
-interface UnitFx { lunge: number; hurt: number; deathT: number }
+interface UnitFx { anim: Anim; clip?: Clip; t: number; hurt: number; lastX: number; deathT: number }
 
 interface LaneFx {
   battle: BattleState | null
+  /** seconds since `battle` ended (lane.battle went null) */
+  after: number
   floaters: Floater[]
   projectiles: Projectile[]
   bursts: Burst[]
@@ -29,6 +37,9 @@ const THEMES: Record<string, { sky: string[]; hill: string; ground: string; dirt
   capital: { sky: ['#f2a65a', '#f7c47a', '#fbe0a0'], hill: '#b8833a', ground: '#c9a36b', dirt: '#7a5a32', deco: '#8a4b2a' },
 }
 
+/** Skill → named clip in the art (warrior export has these). Falls back to the attack clip. */
+const SKILL_CLIP: Partial<Record<SkillKind, RegExp>> = { cleave: /heavy-strike/i, guard: /shield-bash/i }
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D
   private lanes: LaneFx[] = []
@@ -39,18 +50,19 @@ export class Renderer {
   }
 
   resize(lanes: number, cssWidth: number) {
-    const h = LANE_H * lanes
-    if (this.canvas.width !== LANE_WIDTH || this.canvas.height !== h) {
-      this.canvas.width = LANE_WIDTH
+    const w = LANE_WIDTH * RES
+    const h = LANE_H * lanes * RES
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w
       this.canvas.height = h
     }
-    // integer scaling keeps pixels crisp
-    // keep the strip compact with many lanes (cap ~440px tall, but never below 2x)
-    const byWidth = Math.floor(cssWidth / LANE_WIDTH)
-    const byHeight = Math.max(2, Math.floor(440 / h))
-    const scale = Math.max(1, Math.min(byWidth, byHeight))
-    this.canvas.style.width = `${LANE_WIDTH * scale}px`
-    this.canvas.style.height = `${h * scale}px`
+    // integer CSS scaling keeps pixels crisp; cap height so 3 lanes still fit above the tabs
+    const byWidth = cssWidth / w
+    const byHeight = 520 / h
+    const fit = Math.min(byWidth, byHeight)
+    const s = fit >= 1 ? Math.floor(fit) : fit
+    this.canvas.style.width = `${w * s}px`
+    this.canvas.style.height = `${h * s}px`
     this.ctx.imageSmoothingEnabled = false
   }
 
@@ -59,27 +71,38 @@ export class Renderer {
     const dt = Math.min(0.1, (now - this.last) / 1000)
     this.last = now
     const theme = THEMES[OUTPOSTS[state.outpostIdx]!.id]!
+    const c = this.ctx
+    c.setTransform(1, 0, 0, 1, 0, 0)
+    c.imageSmoothingEnabled = false
     for (let i = 0; i < laneCount; i++) {
       const lane = state.lanes[i]!
-      const fx = (this.lanes[i] ??= { battle: null, floaters: [], projectiles: [], bursts: [], fx: new Map(), scroll: 0 })
-      if (fx.battle !== lane.battle) { fx.battle = lane.battle; fx.fx.clear(); fx.projectiles = []; fx.bursts = [] }
-      this.consumeEvents(lane, fx)
-      this.ctx.save()
-      this.ctx.translate(0, i * LANE_H)
-      this.ctx.beginPath()
-      this.ctx.rect(0, 0, LANE_WIDTH, LANE_H)
-      this.ctx.clip()
-      // walk between waves: scroll background
-      if (!lane.battle && lane.squad.length) fx.scroll += dt * 30
+      const fx = (this.lanes[i] ??= { battle: null, after: 0, floaters: [], projectiles: [], bursts: [], fx: new Map(), scroll: 0 })
+      if (lane.battle && fx.battle !== lane.battle) {
+        fx.battle = lane.battle; fx.after = 0; fx.fx.clear(); fx.projectiles = []; fx.bursts = []
+      } else if (!lane.battle && fx.battle) {
+        fx.after += dt
+        if (fx.after > AFTERMATH || !lane.squad.length) { fx.battle = null; fx.fx.clear() }
+      }
+      this.consumeEvents(fx)
+      c.save()
+      c.scale(RES, RES)
+      c.translate(0, i * LANE_H)
+      c.beginPath()
+      c.rect(0, 0, LANE_WIDTH, LANE_H)
+      c.clip()
+      if (!fx.battle && lane.squad.length) fx.scroll += dt * 30
       this.drawBackground(theme, fx.scroll, i)
-      this.drawLane(state, lane, fx, dt)
+      if (fx.battle) this.drawBattle(lane, fx, dt)
+      else this.drawMarch(state, lane)
       this.drawLaneLabel(lane, i)
-      this.ctx.restore()
+      c.restore()
     }
   }
 
-  private consumeEvents(lane: LaneState, fx: LaneFx) {
-    const b = lane.battle
+  // ---------- events → effects ----------
+
+  private consumeEvents(fx: LaneFx) {
+    const b = fx.battle
     if (!b || !b.events.length) return
     const byId = new Map(b.units.map((u) => [u.uid, u]))
     for (const e of b.events.splice(0)) {
@@ -87,121 +110,151 @@ export class Renderer {
         case 'attack': {
           const s = byId.get(e.src), d = byId.get(e.dst)
           if (!s || !d) break
-          this.unitFx(fx, s.uid).lunge = 0.18
-          if (e.ranged) fx.projectiles.push({ x0: s.x, x1: d.x, y: this.feetY(s) - 9, t: 0, ttl: 0.22, color: projColor(s.classId) })
+          this.play(fx, s, 'attack')
+          if (e.ranged) fx.projectiles.push({ x0: s.x, x1: d.x, y: this.midY(s), t: 0, ttl: 0.22, color: projColor(s.classId) })
           break
         }
         case 'damage': {
           const d = byId.get(e.dst)
           if (!d) break
-          this.unitFx(fx, d.uid).hurt = 0.12
-          fx.floaters.push({ x: d.x + rnd(-3, 3), y: this.feetY(d) - 20, text: `${e.amount}${e.crit ? '!' : ''}`, color: e.crit ? '#ffd54a' : d.side === 'ally' ? '#ff6a6a' : '#ffffff', t: 0, ttl: 0.8 })
+          this.unitFx(fx, d).hurt = 0.12
+          fx.floaters.push({ x: d.x + rnd(-3, 3), y: this.topY(d) - 6, text: `${e.amount}${e.crit ? '!' : ''}`, color: e.crit ? '#ffd54a' : d.side === 'ally' ? '#ff6a6a' : '#ffffff', t: 0, ttl: 0.8 })
           break
         }
         case 'heal': {
           const d = byId.get(e.dst)
-          if (d) fx.floaters.push({ x: d.x, y: this.feetY(d) - 20, text: `+${e.amount}`, color: '#7cff8a', t: 0, ttl: 0.9 })
+          if (d) fx.floaters.push({ x: d.x, y: this.topY(d) - 6, text: `+${e.amount}`, color: '#7cff8a', t: 0, ttl: 0.9 })
           break
         }
         case 'skill': {
+          const s = byId.get(e.src)
+          if (s) this.play(fx, s, 'attack', SKILL_CLIP[e.kind])
           const color = { cleave: '#ffffff', fireball: '#ff6a3d', heal: '#7cff8a', volley: '#ffd54a', guard: '#4fa3ff', smite: '#fff6a0' }[e.kind]
-          fx.bursts.push({ x: e.kind === 'heal' || e.kind === 'guard' ? (byId.get(e.src)?.x ?? e.x) : e.x, r: e.area ?? 14, t: 0, ttl: 0.45, color, label: e.name })
+          fx.bursts.push({ x: e.kind === 'heal' || e.kind === 'guard' ? (s?.x ?? e.x) : e.x, r: e.area ?? 14, t: 0, ttl: 0.45, color, label: e.name })
           break
         }
-        case 'death':
-          this.unitFx(fx, e.dst).deathT = 0.001
+        case 'death': {
+          const d = byId.get(e.dst)
+          if (d) { this.play(fx, d, 'death'); this.unitFx(fx, d).deathT = 0.0001 }
           break
+        }
       }
     }
   }
 
-  private unitFx(fx: LaneFx, uid: number): UnitFx {
-    let u = fx.fx.get(uid)
-    if (!u) { u = { lunge: 0, hurt: 0, deathT: 0 }; fx.fx.set(uid, u) }
-    return u
+  private unitFx(fx: LaneFx, u: Combatant): UnitFx {
+    let f = fx.fx.get(u.uid)
+    if (!f) { f = { anim: 'idle', t: Math.random(), hurt: 0, lastX: u.x, deathT: 0 }; fx.fx.set(u.uid, f) }
+    return f
   }
 
-  private feetY(u: Combatant) {
-    return GROUND_Y + (getClass(u.classId).row === 'front' ? 10 : 6)
+  private play(fx: LaneFx, u: Combatant, anim: Anim, named?: RegExp) {
+    const f = this.unitFx(fx, u)
+    const a = art(u.classId)
+    f.anim = anim
+    f.t = 0
+    f.clip = a ? (named && Object.entries(a.extra).find(([n]) => named.test(n))?.[1]) || a.anims[anim] : undefined
   }
+
+  // ---------- geometry ----------
+
+  private feetY(u: { classId: string }) {
+    return GROUND_Y + (getClass(u.classId).row === 'front' ? 12 : 6)
+  }
+  private height(classId: string) {
+    const a = art(classId)
+    return a ? a.visible * a.scale : 20
+  }
+  private topY(u: Combatant) { return this.feetY(u) - this.height(u.classId) }
+  private midY(u: Combatant) { return this.feetY(u) - this.height(u.classId) * 0.55 }
+
+  // ---------- drawing ----------
 
   private drawBackground(th: (typeof THEMES)[string], scroll: number, laneIdx: number) {
     const c = this.ctx
-    // banded sky
-    th.sky.forEach((col, i) => { c.fillStyle = col; c.fillRect(0, i * 10, LANE_WIDTH, i === th.sky.length - 1 ? GROUND_Y : 10) })
-    // far hills (parallax)
+    th.sky.forEach((col, i) => { c.fillStyle = col; c.fillRect(0, i * 12, LANE_WIDTH, i === th.sky.length - 1 ? GROUND_Y : 12) })
     c.fillStyle = th.hill
     const off = (scroll * 0.3 + laneIdx * 57) % 64
     for (let x = -64; x < LANE_WIDTH + 64; x += 64) {
       const hx = Math.round(x - off)
-      for (let k = 0; k < 16; k++) c.fillRect(hx + k * 2, GROUND_Y - 4 - Math.round(Math.sin((k / 15) * Math.PI) * 10), 2, 14)
+      for (let k = 0; k < 16; k++) c.fillRect(hx + k * 2, GROUND_Y - 4 - Math.round(Math.sin((k / 15) * Math.PI) * 12), 2, 16)
     }
-    // ground
     c.fillStyle = th.ground
     c.fillRect(0, GROUND_Y, LANE_WIDTH, LANE_H - GROUND_Y)
     c.fillStyle = th.dirt
     c.fillRect(0, LANE_H - 4, LANE_WIDTH, 4)
-    // grass tufts / deco
     c.fillStyle = th.deco
     const goff = Math.round(scroll) % 24
     for (let x = -24; x < LANE_WIDTH + 24; x += 24) {
       const gx = x - goff + ((x * 7) % 11)
       c.fillRect(gx, GROUND_Y + 2, 1, 2)
       c.fillRect(gx + 2, GROUND_Y + 1, 1, 3)
-      c.fillRect(gx + 9, GROUND_Y + 14, 2, 1)
+      c.fillRect(gx + 9, GROUND_Y + 16, 2, 1)
     }
-    // lane separator
     c.fillStyle = '#1a1424'
     c.fillRect(0, LANE_H - 1, LANE_WIDTH, 1)
   }
 
-  private drawLane(state: GameState, lane: LaneState, fx: LaneFx, dt: number) {
+  /** Squad walking right between waves. */
+  private drawMarch(state: GameState, lane: LaneState) {
+    const t = performance.now() / 1000
+    lane.squad.forEach((id, i) => {
+      const d = state.duelists[id]!
+      const a = art(d.classId)
+      const x = 120 - i * 22
+      const fy = this.feetY(d)
+      if (a) {
+        const clip = a.anims.walk ?? a.still
+        this.drawClip(a, clip, frameAt(clip, t + i * 0.3, true), x, fy, false, false)
+      } else this.drawFallback(d.classId, x, fy, false, false)
+    })
+    if (lane.mode === 'duel') this.label('DUEL INCOMING', LANE_WIDTH / 2, 22, '#ffd54a')
+  }
+
+  private drawBattle(lane: LaneState, fx: LaneFx, dt: number) {
     const c = this.ctx
-    const b = lane.battle
-    if (!b) {
-      // squad walking between waves
-      lane.squad.forEach((id, i) => {
-        const d = state.duelists[id]!
-        const cls = getClass(d.classId)
-        const x = 110 - i * 20
-        const bob = Math.floor(performance.now() / 150 + i) % 2
-        const spr = getSprite(cls.sprite, cls.palette, false)
-        c.drawImage(spr.normal, Math.round(x - 8), GROUND_Y + (cls.row === 'front' ? 10 : 6) - 16 - bob)
-      })
-      if (lane.mode === 'duel') this.banner('DUEL INCOMING', '#ffd54a')
-      return
-    }
-    // sort: back row first so front row overlaps
+    const b = fx.battle!
     const units = [...b.units].sort((a, z) => this.feetY(a) - this.feetY(z))
     for (const u of units) {
-      const f = this.unitFx(fx, u.uid)
-      f.lunge = Math.max(0, f.lunge - dt)
+      const f = this.unitFx(fx, u)
       f.hurt = Math.max(0, f.hurt - dt)
-      if (!u.alive) {
-        if (f.deathT === 0) f.deathT = 0.001
-        f.deathT += dt
-        if (f.deathT > 0.6) continue
-        c.globalAlpha = Math.max(0, 1 - f.deathT / 0.6)
-      }
-      const cls = getClass(u.classId)
-      const facingLeft = u.side === 'enemy'
-      const spr = getSprite(cls.sprite, cls.palette, facingLeft)
-      const lungeDx = f.lunge > 0 ? (facingLeft ? -2 : 2) : 0
-      const bob = u.alive ? Math.floor(performance.now() / 220 + u.uid) % 2 : 0
+      f.t += dt
+      const a = art(u.classId)
+      const flip = u.side === 'enemy'
       const fy = this.feetY(u)
-      c.drawImage(f.hurt > 0 ? spr.flash : spr.normal, Math.round(u.x - 8 + lungeDx), fy - 16 - bob)
+
+      if (!u.alive) {
+        f.deathT = (f.deathT || 0.0001) + dt
+        const clipLen = f.clip && f.anim === 'death' ? f.clip.frames.length / FPS : 0
+        const fade = Math.max(0, f.deathT - clipLen)
+        if (fade > 0.5) continue
+        c.globalAlpha = 1 - fade / 0.5
+      } else if (f.anim === 'attack' || f.anim === 'death') {
+        if (!f.clip || f.t >= f.clip.frames.length / FPS) { f.anim = 'idle'; f.clip = undefined }
+      }
+      if (u.alive && f.anim !== 'attack') {
+        const moving = Math.abs(u.x - f.lastX) > 0.01
+        const want: Anim = moving && !b.over ? 'walk' : 'idle'
+        if (f.anim !== want) { f.anim = want; f.clip = a?.anims[want] }
+      }
+      f.lastX = u.x
+
+      if (a) {
+        const clip = f.clip ?? (u.alive ? a.still : a.anims.death ?? a.still)
+        const loop = f.anim === 'idle' || f.anim === 'walk'
+        this.drawClip(a, clip, frameAt(clip, f.t, loop), u.x, fy, flip, f.hurt > 0)
+      } else this.drawFallback(u.classId, u.x, fy, flip, f.hurt > 0)
       c.globalAlpha = 1
-      if (u.alive) this.bars(u, fy)
+      if (u.alive) this.bars(u, this.topY(u) - 4)
     }
-    // projectiles
+
     fx.projectiles = fx.projectiles.filter((p) => (p.t += dt) < p.ttl)
     for (const p of fx.projectiles) {
       const x = p.x0 + (p.x1 - p.x0) * (p.t / p.ttl)
       c.fillStyle = p.color
-      c.fillRect(Math.round(x) - 1, p.y, 3, 1)
-      c.fillRect(Math.round(x), p.y - 1, 1, 3)
+      c.fillRect(Math.round(x) - 2, Math.round(p.y), 4, 1)
+      c.fillRect(Math.round(x) - 1, Math.round(p.y) - 1, 2, 3)
     }
-    // skill bursts
     fx.bursts = fx.bursts.filter((p) => (p.t += dt) < p.ttl)
     for (const p of fx.bursts) {
       const k = p.t / p.ttl
@@ -210,56 +263,79 @@ export class Renderer {
       const r = Math.round(p.r * (0.4 + k * 0.6))
       for (let a = 0; a < 16; a++) {
         const ang = (a / 16) * Math.PI * 2
-        c.fillRect(Math.round(p.x + Math.cos(ang) * r), Math.round(GROUND_Y + 2 + Math.sin(ang) * r * 0.35), 2, 2)
+        c.fillRect(Math.round(p.x + Math.cos(ang) * r), Math.round(GROUND_Y + 8 + Math.sin(ang) * r * 0.3), 2, 2)
       }
       c.globalAlpha = 1
-      if (k < 0.7) this.label(p.label, p.x, 8, p.color)
+      if (k < 0.7) this.label(p.label, p.x, 3, p.color)
     }
-    // floating numbers
     fx.floaters = fx.floaters.filter((p) => (p.t += dt) < p.ttl)
-    for (const p of fx.floaters) drawDigits(c, p.text, p.x, p.y - p.t * 14, p.color)
-    if (lane.mode === 'duel') this.label('DUEL', LANE_WIDTH / 2, 8, '#ffd54a')
+    for (const p of fx.floaters) drawDigits(c, p.text, p.x, p.y - p.t * 12, p.color)
+    if (lane.mode === 'duel') this.label('DUEL', LANE_WIDTH - 20, 3, '#ffd54a')
   }
 
-  private bars(u: Combatant, fy: number) {
+  private drawClip(a: ArtSet, clip: Clip, i: number, x: number, feet: number, flip: boolean, flash: boolean) {
     const c = this.ctx
-    const x = Math.round(u.x - 6)
-    const y = fy - 20
+    const img = (flash ? clip.flash : clip.frames)[i]!
+    const s = a.scale
+    const w = img.width * s
+    const h = img.height * s
+    const y = snap(feet - clip.foot * s)
+    c.save()
+    c.translate(snap(x), 0)
+    if (flip) c.scale(-1, 1)
+    c.drawImage(img, snap(-w / 2), y, w, h)
+    c.restore()
+  }
+
+  /** Procedural 16px sprite for classes without art. */
+  private drawFallback(classId: string, x: number, feet: number, flip: boolean, flash: boolean) {
+    const cls = getClass(classId)
+    const spr = getSprite(cls.sprite, cls.palette, flip)
+    this.ctx.drawImage(flash ? spr.flash : spr.normal, Math.round(x - 10), feet - 20, 20, 20)
+  }
+
+  private bars(u: Combatant, y: number) {
+    const c = this.ctx
+    const x = Math.round(u.x - 7)
+    y = Math.round(y)
     c.fillStyle = '#1a1424'
-    c.fillRect(x - 1, y - 1, 14, u.side === 'ally' ? 5 : 4)
+    c.fillRect(x - 1, y - 1, 16, u.side === 'ally' ? 5 : 4)
     c.fillStyle = '#4a2a2a'
-    c.fillRect(x, y, 12, 2)
+    c.fillRect(x, y, 14, 2)
     c.fillStyle = u.side === 'ally' ? '#5ad65a' : '#e04a4a'
-    c.fillRect(x, y, Math.ceil((12 * u.hp) / u.maxHp), 2)
-    if (u.guard < 1) { c.fillStyle = '#4fa3ff'; c.fillRect(x, y - 2, 12, 1) }
+    c.fillRect(x, y, Math.ceil((14 * u.hp) / u.maxHp), 2)
+    if (u.guard < 1) { c.fillStyle = '#4fa3ff'; c.fillRect(x, y - 2, 14, 1) }
     if (u.side === 'ally') {
       c.fillStyle = '#ffd54a'
-      c.fillRect(x, y + 3, Math.round((12 * u.energy) / 100), 1)
+      c.fillRect(x, y + 3, Math.round((14 * u.energy) / 100), 1)
     }
   }
 
   private label(text: string, x: number, y: number, color: string) {
     const c = this.ctx
-    c.font = '8px "Press Start 2P", monospace'
+    c.font = '4px "Press Start 2P", monospace'
     c.textAlign = 'center'
     c.textBaseline = 'top'
     c.fillStyle = '#1a1424'
-    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) c.fillText(text, Math.round(x) + dx!, y + dy!)
+    for (const [dx, dy] of [[-0.5, 0], [0.5, 0], [0, -0.5], [0, 0.5]]) c.fillText(text, Math.round(x) + dx!, y + dy!)
     c.fillStyle = color
     c.fillText(text, Math.round(x), y)
   }
 
-  private banner(text: string, color: string) {
-    this.label(text, LANE_WIDTH / 2, 20, color)
-  }
-
   private drawLaneLabel(lane: LaneState, i: number) {
-    this.label(`${i + 1}`, 8, 3, lane.squad.length ? '#ffffff' : '#7a7a8a')
-    if (!lane.squad.length) this.label('EMPTY SQUAD', LANE_WIDTH / 2, 30, '#d9e2ec')
+    this.label(`${i + 1}`, 6, 3, lane.squad.length ? '#ffffff' : '#7a7a8a')
+    if (!lane.squad.length) this.label('EMPTY SQUAD', LANE_WIDTH / 2, 34, '#d9e2ec')
   }
 }
 
+function frameAt(clip: Clip, t: number, loop: boolean) {
+  const n = clip.frames.length
+  const i = Math.floor(t * FPS)
+  return loop ? i % n : Math.min(n - 1, i)
+}
+/** Snap to whole device pixels. */
+const snap = (v: number) => Math.round(v * RES) / RES
 const rnd = (a: number, b: number) => a + Math.random() * (b - a)
 function projColor(classId: string) {
-  return ({ mage: '#ff6a3d', wizard: '#ff3d6a', priest: '#ffe27a', bishop: '#9fffe0' } as Record<string, string>)[classId] ?? '#d9e2ec'
+  return ({ mage: '#ff6a3d', wizard: '#ff3d6a', priest: '#ffe27a', bishop: '#9fffe0', wraith: '#9fe0ff', drake: '#ff6a3d' } as Record<string, string>)[classId] ?? '#d9e2ec'
 }

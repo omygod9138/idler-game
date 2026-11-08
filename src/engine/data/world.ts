@@ -5,7 +5,7 @@ import type { OutpostDef, Potential, Rarity, GearSlot } from '../types'
 export const OUTPOSTS: OutpostDef[] = [
   {
     id: 'meadow', name: 'Greenfield Meadow', levelMin: 1, levelMax: 4,
-    pool: ['slime', 'slime', 'bat'], waveSize: [2, 3], followersRequired: 10,
+    pool: ['slime', 'slime', 'wolf'], waveSize: [2, 3], followersRequired: 10,
     duel: { guild: 'Mudfoot Rookies', squad: [
       { classId: 'warrior', level: 6, potential: 'D' },
       { classId: 'archer', level: 5, potential: 'D' },
@@ -14,7 +14,7 @@ export const OUTPOSTS: OutpostDef[] = [
   },
   {
     id: 'forest', name: 'Whisperwood', levelMin: 5, levelMax: 10,
-    pool: ['goblin', 'bat', 'slime'], waveSize: [2, 4], followersRequired: 20,
+    pool: ['wolf', 'orc', 'slime'], waveSize: [2, 4], followersRequired: 20,
     duel: { guild: 'Thornbark Band', squad: [
       { classId: 'warrior', level: 13, potential: 'C' },
       { classId: 'priest', level: 12, potential: 'C' },
@@ -24,7 +24,7 @@ export const OUTPOSTS: OutpostDef[] = [
   },
   {
     id: 'crypt', name: 'Ashen Crypt', levelMin: 11, levelMax: 18,
-    pool: ['skeleton', 'goblin', 'bat'], waveSize: [3, 4], followersRequired: 35,
+    pool: ['skeleton', 'wraith', 'orc', 'skeleton', 'wraith', 'orc', 'draugr'], waveSize: [3, 4], followersRequired: 35,
     duel: { guild: 'Bonewatch Order', squad: [
       { classId: 'knight', level: 22, potential: 'C' },
       { classId: 'archer', level: 21, potential: 'B' },
@@ -35,7 +35,7 @@ export const OUTPOSTS: OutpostDef[] = [
   },
   {
     id: 'pass', name: 'Frostfang Pass', levelMin: 19, levelMax: 28,
-    pool: ['goblin', 'skeleton', 'skeleton', 'bat'], waveSize: [3, 5], followersRequired: 50,
+    pool: ['troll', 'wolf', 'skeleton', 'wolf', 'troll', 'wraith', 'jotunn'], waveSize: [3, 5], followersRequired: 50,
     duel: { guild: 'Silver Lances', squad: [
       { classId: 'knight', level: 32, potential: 'B' },
       { classId: 'ranger', level: 31, potential: 'B' },
@@ -46,7 +46,7 @@ export const OUTPOSTS: OutpostDef[] = [
   },
   {
     id: 'capital', name: 'Duelist Capital', levelMin: 29, levelMax: 40,
-    pool: ['goblin', 'skeleton', 'bat'], waveSize: [4, 5], followersRequired: 80,
+    pool: ['troll', 'wraith', 'orc', 'skeleton', 'troll', 'drake', 'draugr', 'jotunn'], waveSize: [4, 5], followersRequired: 80,
     duel: { guild: 'Crown Champions', squad: [
       { classId: 'knight', level: 45, potential: 'A' },
       { classId: 'ranger', level: 44, potential: 'A' },

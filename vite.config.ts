@@ -4,6 +4,7 @@ import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [vue()],
+  build: { assetsInlineLimit: 0 },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },
 } as any)

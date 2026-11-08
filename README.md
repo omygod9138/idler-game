@@ -1,8 +1,8 @@
 # Idle Duelists (web prototype)
 
 Browser prototype of a pixel-art idle auto-battler, modeled on the core loop of
-[Duelist: Idle Expedition](https://store.steampowered.com/app/4282780). Original
-procedural pixel art — no assets copied. Everything runs locally (localStorage save).
+[Duelist: Idle Expedition](https://store.steampowered.com/app/4282780). Character art is the
+PixelLab set from the `auto-battler` (Fjord Battlegrounds) project. Everything runs locally (localStorage save).
 
 ```bash
 npm install
@@ -41,9 +41,11 @@ src/
     battle.ts      lane combat sim (createBattle / stepBattle / simulate)
     game.ts        world tick, rewards, player actions (return error | null)
     save.ts        localStorage + offline progress
-  render/        canvas pixel renderer (400×72 per lane, integer-scaled)
-    sprites.ts     16×16 char-map sprites + palettes (swap for real sprite sheets)
-    renderer.ts    consumes battle events → lunge/flash/projectiles/numbers
+  assets/sprites/  PixelLab exports (east-facing frames only), copied from auto-battler
+  render/        canvas renderer (400×80 world units per lane, 2 device px per unit)
+    art.ts         loads exports, maps class → art (+ hue-shift palette swaps), idle/walk/attack/death clips
+    sprites.ts     16×16 procedural fallback for classes without art + pixel digits
+    renderer.ts    consumes battle events → animations, hit flash, projectiles, numbers
   stores/game.ts Pinia store: raw engine state + triggerRef @4Hz, 10Hz logic loop
   ui/            Vue 3 components (tabs: Squads, Tavern, Armory, Camp, Map, Log)
 tests/           vitest specs for engine rules
@@ -55,6 +57,17 @@ Design rules for refactoring:
 - **Data-driven.** New class = one entry in `CLASSES`; new outpost = one entry in `OUTPOSTS`.
 - **Deterministic.** RNG seed lives in `GameState`, so tests and replays are reproducible.
 - **Events, not callbacks.** Battle emits `BattleEvent[]`; the renderer drains them. Headless sims just ignore them.
+
+## Art
+
+| Class / mob | Art | Notes |
+|---|---|---|
+| Warrior / Knight | `warrior` | Knight = hue shift; Cleave plays `heavy-strike`, Shield Wall plays `shield-bash` |
+| Mage / Wizard / Priest / Bishop | `mage` | priest & bishop are hue-shifted mages until they get their own art |
+| Archer / Ranger | `ranger` | Ranger = hue shift |
+| Monsters | slime, wolf, orc, skeleton, wraith, troll; elites draugr, jotunn, drake | |
+
+New art: drop a PixelLab export into `src/assets/sprites/<id>/` and add `classId → { id, hue? }` in `render/art.ts`.
 
 ## Not yet in prototype (reference game has them)
 Rank III–V classes (21 sub-classes / 91 roles), enchanting, combat styles, followers' unique

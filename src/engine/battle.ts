@@ -30,7 +30,7 @@ function place(b: BattleState, specs: CombatantSpec[], side: Side, rng: Rng) {
   for (const s of specs) {
     const row = getClass(s.classId).row
     const slot = row === 'front' ? front++ : back++
-    const offset = (row === 'front' ? 120 : 60) - slot * 18
+    const offset = (row === 'front' ? 120 : 64) - slot * 22
     const x = side === 'ally' ? offset : LANE_WIDTH - offset
     const u: Combatant = {
       uid: ++b.uidCounter, side, ref: s.ref, name: s.name, classId: s.classId, level: s.level,

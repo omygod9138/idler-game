@@ -16,7 +16,7 @@ describe('battle', () => {
       const h = { seed: 42 }
       const rng = makeRng(h)
       const mk = (c: string, l: number) => ({ name: c, classId: c, level: l, stats: computeStats(c, l) })
-      return simulate(createBattle([mk('warrior', 5), mk('mage', 5)], [mk('slime', 3), mk('bat', 3)], rng), rng)
+      return simulate(createBattle([mk('warrior', 5), mk('mage', 5)], [mk('slime', 3), mk('wolf', 3)], rng), rng)
     }
     const a = run(), b = run()
     expect(a.winner).toBe(b.winner)
@@ -27,7 +27,7 @@ describe('battle', () => {
     const h = { seed: 7 }
     const rng = makeRng(h)
     const mk = (c: string, l: number) => ({ name: c, classId: c, level: l, stats: computeStats(c, l) })
-    const b = simulate(createBattle([mk('warrior', 5), mk('priest', 5)], [mk('slime', 3), mk('slime', 3), mk('bat', 3)], rng), rng)
+    const b = simulate(createBattle([mk('warrior', 5), mk('priest', 5)], [mk('slime', 3), mk('slime', 3), mk('wolf', 3)], rng), rng)
     expect(b.winner).toBe('ally')
   })
 })
