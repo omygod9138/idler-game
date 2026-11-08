@@ -72,3 +72,8 @@ New art: drop a PixelLab export into `src/assets/sprites/<id>/` and add `classId
 ## Not yet in prototype (reference game has them)
 Rank III–V classes (21 sub-classes / 91 roles), enchanting, combat styles, followers' unique
 styles, Exploration Post, shop/auction, taskbar "desktop companion" window, Idle/Immersive toggle.
+
+## Deploy
+
+`.github/workflows/pages.yml` builds and deploys to GitHub Pages on every push to `main`
+(`GITHUB_PAGES=true` sets the Vite base to `/idler-game/`). URL: https://omygod9138.github.io/idler-game/
