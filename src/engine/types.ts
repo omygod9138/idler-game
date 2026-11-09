@@ -95,7 +95,6 @@ export interface OutpostDef {
   levelMax: number
   /** monster pool for frontier waves */
   pool: string[]
-  waveSize: [number, number]
   followersRequired: number
   duel: { guild: string; squad: EnemyTemplate[] }
   goldPerKill: number
@@ -112,7 +111,7 @@ export interface Materials {
 
 export interface LaneState {
   index: number
-  /** duelist ids, max 4 */
+  /** duelist ids, max TEAM_SIZE */
   squad: string[]
   mode: 'frontier' | 'duel' | 'idle'
   battle: BattleState | null

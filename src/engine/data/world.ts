@@ -1,20 +1,23 @@
 import type { OutpostDef, Potential, Rarity, GearSlot } from '../types'
 
 // ---- Outposts (map progression) ----
+// Every fight is TEAM_SIZE v TEAM_SIZE (see game.ts): frontier waves draw that many monsters from `pool`,
+// and each duel squad lists exactly that many base-class duelists.
 // Frontier waves grant Followers; at followersRequired you may challenge the Duel.
 export const OUTPOSTS: OutpostDef[] = [
   {
     id: 'meadow', name: 'Greenfield Meadow', levelMin: 1, levelMax: 4,
-    pool: ['slime', 'slime', 'wolf'], waveSize: [2, 3], followersRequired: 10,
+    pool: ['slime', 'slime', 'wolf'], followersRequired: 10,
     duel: { guild: 'Mudfoot Rookies', squad: [
       { classId: 'warrior', level: 6, potential: 'D' },
       { classId: 'archer', level: 5, potential: 'D' },
+      { classId: 'priest', level: 4, potential: 'E' },
     ] },
     goldPerKill: 6, expPerKill: 5,
   },
   {
     id: 'forest', name: 'Whisperwood', levelMin: 5, levelMax: 10,
-    pool: ['wolf', 'orc', 'slime'], waveSize: [2, 4], followersRequired: 20,
+    pool: ['wolf', 'orc', 'slime'], followersRequired: 20,
     duel: { guild: 'Thornbark Band', squad: [
       { classId: 'warrior', level: 13, potential: 'C' },
       { classId: 'priest', level: 12, potential: 'C' },
@@ -24,34 +27,31 @@ export const OUTPOSTS: OutpostDef[] = [
   },
   {
     id: 'crypt', name: 'Ashen Crypt', levelMin: 11, levelMax: 18,
-    pool: ['skeleton', 'wraith', 'orc', 'skeleton', 'wraith', 'orc', 'draugr'], waveSize: [3, 4], followersRequired: 35,
+    pool: ['skeleton', 'wraith', 'orc', 'skeleton', 'wraith', 'orc', 'draugr'], followersRequired: 35,
     duel: { guild: 'Bonewatch Order', squad: [
-      { classId: 'knight', level: 22, potential: 'C' },
-      { classId: 'archer', level: 21, potential: 'B' },
-      { classId: 'priest', level: 20, potential: 'B' },
-      { classId: 'mage', level: 21, potential: 'B' },
+      { classId: 'warrior', level: 22, potential: 'C' },
+      { classId: 'archer', level: 21, potential: 'C' },
+      { classId: 'mage', level: 21, potential: 'C' },
     ] },
     goldPerKill: 30, expPerKill: 24,
   },
   {
     id: 'pass', name: 'Frostfang Pass', levelMin: 19, levelMax: 28,
-    pool: ['troll', 'wolf', 'skeleton', 'wolf', 'troll', 'wraith', 'jotunn'], waveSize: [3, 5], followersRequired: 50,
+    pool: ['troll', 'wolf', 'skeleton', 'wolf', 'troll', 'wraith', 'jotunn'], followersRequired: 50,
     duel: { guild: 'Silver Lances', squad: [
-      { classId: 'knight', level: 32, potential: 'B' },
-      { classId: 'ranger', level: 31, potential: 'B' },
-      { classId: 'bishop', level: 30, potential: 'B' },
-      { classId: 'wizard', level: 31, potential: 'A' },
+      { classId: 'warrior', level: 32, potential: 'C' },
+      { classId: 'archer', level: 31, potential: 'C' },
+      { classId: 'mage', level: 31, potential: 'B' },
     ] },
     goldPerKill: 60, expPerKill: 45,
   },
   {
     id: 'capital', name: 'Duelist Capital', levelMin: 29, levelMax: 40,
-    pool: ['troll', 'wraith', 'orc', 'skeleton', 'troll', 'drake', 'draugr', 'jotunn'], waveSize: [4, 5], followersRequired: 80,
+    pool: ['troll', 'wraith', 'orc', 'skeleton', 'troll', 'drake', 'draugr', 'jotunn'], followersRequired: 80,
     duel: { guild: 'Crown Champions', squad: [
-      { classId: 'knight', level: 45, potential: 'A' },
-      { classId: 'ranger', level: 44, potential: 'A' },
-      { classId: 'bishop', level: 44, potential: 'A' },
-      { classId: 'wizard', level: 45, potential: 'S' },
+      { classId: 'warrior', level: 45, potential: 'B' },
+      { classId: 'priest', level: 44, potential: 'B' },
+      { classId: 'mage', level: 45, potential: 'A' },
     ] },
     goldPerKill: 110, expPerKill: 80,
   },
@@ -93,6 +93,8 @@ export function facilityUpgradeCost(id: keyof typeof FACILITY_INFO, level: numbe
 // Hiring cost by rank (reference values)
 export const HIRE_COST = [0, 1000, 5000, 25000, 125000, 625000]
 export const RANK_UP = { 2: { minLevel: 20, gold: 5000, badge: 1 } } as const
+/** Rank II+ sub-classes stay defined in CLASSES but are locked until they are designed in. */
+export const SUBCLASSES_ENABLED = false
 
 // ---- Gear ----
 export const RARITIES: Rarity[] = ['common', 'rare', 'epic', 'legendary', 'mythic']
