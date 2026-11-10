@@ -115,6 +115,17 @@
               "Idle/animations/shield-bash_knight_lunges_forward_leading_with_the/east/frame_007.png",
               "Idle/animations/shield-bash_knight_lunges_forward_leading_with_the/east/frame_008.png"
             ]
+          },
+          "idle": {
+            "east": [
+              "Idle/animations/idle/east/frame_000.png",
+              "Idle/animations/idle/east/frame_001.png",
+              "Idle/animations/idle/east/frame_002.png",
+              "Idle/animations/idle/east/frame_003.png",
+              "Idle/animations/idle/east/frame_004.png",
+              "Idle/animations/idle/east/frame_005.png",
+              "Idle/animations/idle/east/frame_006.png"
+            ]
           }
         }
       }

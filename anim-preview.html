@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sprite Anim Preview</title>
+<!-- Dev-only page: plays every clip listed in src/assets/sprites/<id>/metadata.json. Not part of the game build. -->
+<style>
+  :root { --bg: #14181f; --card: #1e2430; --fg: #d9e2ec; --muted: #8a96a8; --accent: #ffcf5a; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 16px; }
+  .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  select, input { background: var(--card); color: var(--fg); border: 1px solid #333c4d; border-radius: 6px; padding: 4px 8px; }
+  h2 { font-size: 16px; margin: 20px 0 8px; color: var(--accent); }
+  .grid { display: flex; flex-wrap: wrap; gap: 12px; }
+  .card { background: var(--card); border-radius: 8px; padding: 8px; text-align: center; }
+  .card.new { outline: 2px solid var(--accent); }
+  canvas { image-rendering: pixelated; display: block; background: #2a3242; border-radius: 4px; }
+  .name { font-size: 12px; margin-top: 6px; max-width: 220px; overflow-wrap: anywhere; }
+  .muted { color: var(--muted); font-size: 11px; }
+</style>
+</head>
+<body>
+<h1>Sprite animation preview</h1>
+<p>Every east clip for each character, looping. Clips named idle / death are outlined. The grey line is the feet line taken from frame 0.</p>
+<div class="bar">
+  <label>Characters <select id="who"><option value="mage,warrior">mage + warrior</option><option value="all">all</option></select></label>
+  <label>Scale <input id="scale" type="range" min="2" max="6" value="3" /></label>
+  <label>FPS <input id="fps" type="range" min="2" max="16" value="8" /></label>
+</div>
+<div id="out"></div>
+<script type="module">
+const ALL = ['warrior', 'ranger', 'mage', 'slime', 'wolf', 'skeleton', 'orc', 'wraith', 'troll', 'draugr', 'drake', 'jotunn'];
+const out = document.getElementById('out');
+const $ = (id) => document.getElementById(id);
+let clips = [];
+
+const load = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+function footLine(img) {
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, c.width, c.height).data;
+  for (let y = c.height - 1; y >= 0; y--) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 0) return y + 1;
+  return c.height;
+}
+
+async function build() {
+  clips = []; out.innerHTML = '';
+  const ids = $('who').value === 'all' ? ALL : $('who').value.split(',');
+  for (const id of ids) {
+    const base = `/src/assets/sprites/${id}/`;
+    let meta; try { meta = await (await fetch(base + 'metadata.json')).json(); } catch { continue; }
+    const st = meta.states[0];
+    const h = document.createElement('h2'); h.textContent = id; out.append(h);
+    const grid = document.createElement('div'); grid.className = 'grid'; out.append(grid);
+    const list = [['still', [st.frames.rotations.east]]];
+    for (const [name, dirs] of Object.entries(st.frames.animations)) if (dirs.east) list.push([name, dirs.east]);
+    for (const [name, files] of list) {
+      const frames = await Promise.all(files.map((f) => load(base + f)));
+      const card = document.createElement('div'); card.className = 'card' + (/^(idle|death)$/.test(name) ? ' new' : '');
+      const cv = document.createElement('canvas');
+      const lbl = document.createElement('div'); lbl.className = 'name';
+      lbl.innerHTML = `${name}<div class="muted">${frames.length} f · ${frames[0].width}x${frames[0].height}</div>`;
+      card.append(cv, lbl); grid.append(card);
+      clips.push({ cv, frames, foot: footLine(frames[0]) });
+    }
+  }
+}
+
+// Draw every clip in a common 100x100 box, feet on one line, centred, like the game does.
+const BOX = 100, FEET = 88;
+let t = 0, last = 0;
+function tick(now) {
+  const s = +$('scale').value, fps = +$('fps').value;
+  if (now - last > 1000 / fps) { t++; last = now; }
+  for (const c of clips) {
+    if (c.cv.width !== BOX * s || c.cv.height !== BOX * s) { c.cv.width = BOX * s; c.cv.height = BOX * s; }
+    const g = c.cv.getContext('2d'); g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, c.cv.width, c.cv.height);
+    g.fillStyle = '#56607a'; g.fillRect(0, FEET * s, c.cv.width, Math.max(1, s / 2));
+    const img = c.frames[t % c.frames.length];
+    g.drawImage(img, Math.round((BOX - img.width) / 2) * s, (FEET - c.foot) * s, img.width * s, img.height * s);
+  }
+  requestAnimationFrame(tick);
+}
+$('who').onchange = build;
+await build();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

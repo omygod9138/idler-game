@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useGame } from '@/stores/game'
 import TopBar from './components/TopBar.vue'
 import BattleView from './components/BattleView.vue'
@@ -9,6 +9,9 @@ import CampTab from './components/CampTab.vue'
 import ArmoryTab from './components/ArmoryTab.vue'
 import MapTab from './components/MapTab.vue'
 import LogTab from './components/LogTab.vue'
+
+// Dev-only debug panel: `import.meta.env.DEV` is false in `vite build`, so this import is dropped.
+const DevPanel = import.meta.env.DEV ? defineAsyncComponent(() => import('@/dev/DevPanel.vue')) : null
 
 const game = useGame()
 const tabs = [
@@ -56,6 +59,8 @@ function fmtTime(s: number) {
     </footer>
 
     <div v-if="toastVisible && game.toast" class="toast panel">{{ game.toast.text }}</div>
+
+    <component :is="DevPanel" v-if="DevPanel" />
 
     <div v-if="game.offline" class="modal-bg" @click.self="game.offline = null">
       <div class="panel modal">
