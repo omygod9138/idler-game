@@ -1,29 +1,36 @@
 {
-  "group_id": "e0b559b1-89f3-4344-b5cb-4fee7c3b223d",
   "states": [
     {
       "character": {
-        "id": "74d09f30-2688-460a-a591-ba5be7dd1e75",
+        "id": "9d2c179a-fb03-40d3-82bb-963f4629d68e",
         "name": "Idle",
-        "prompt": "chibi female elven ranger, slim athletic build, long pointed elf ears, long braided silver-blonde hair, forest green hooded cloak with leaf-shaped trim, brown leather jerkin and bracers, dark green leggings, tall brown boots, quiver of white-fletched arrows on her back, holding a curved wooden longbow in her left hand, green eyes, full body, feet on the bottom of the canvas",
+        "prompt": "Settings\n\nCanvas: 64x64\nView: side-scroller\nDirection: east (facing right)\nOutline: single color black\nShading: basic\nDetail: medium\nBackground: transparent\n\nCharacter description\nchibi female elf archer, 3 heads tall, dynamic athletic stance, pointed elf ears, long auburn hair in a high ponytail, green leather tunic with brown belt and a brown leather shoulder guard, short cream skirt, green boots with leg wraps, leather quiver of arrows on the hip, large recurve wooden bow held forward in the left hand, side view facing right, full body, centered, feet on the bottom of the canvas\n\nEast still: PixelLab v3 character, then a Pixen edit to show the face in profile and the bow in hand (job fa4f94ba-131f-49c5-b4f3-4b4974839e3c). Animations are made from that still.\n\nAnimation prompts (same settings, east)\nidle: breathing in place, bow lowered slightly, ponytail sways\nwalk: light quick walk forward, ponytail bouncing, bow held forward\nshoot_arrow: nock, draw the string back to the cheek, release\ndeath: drop the bow, knees buckle, fall flat\n\nKeep consistent across all frames\nsame palette (forest green, brown leather, cream, auburn, warm skin), same proportions, same bow and quiver, no extra props, no background, no text",
         "size": {
           "width": 64,
           "height": 64
         },
         "template_id": "mannequin",
-        "directions": 4,
+        "directions": 8,
         "view": "side",
-        "created_at": "2026-10-23T03:57:38.307307+00:00"
+        "created_at": "2026-11-10T14:52:00+00:00"
       },
       "folder": "Idle",
       "frames": {
         "rotations": {
-          "south": "Idle/rotations/south.png",
-          "west": "Idle/rotations/west.png",
-          "east": "Idle/rotations/east.png",
-          "north": "Idle/rotations/north.png"
+          "east": "Idle/rotations/east.png"
         },
         "animations": {
+          "idle": {
+            "east": [
+              "Idle/animations/idle/east/frame_000.png",
+              "Idle/animations/idle/east/frame_001.png",
+              "Idle/animations/idle/east/frame_002.png",
+              "Idle/animations/idle/east/frame_003.png",
+              "Idle/animations/idle/east/frame_004.png",
+              "Idle/animations/idle/east/frame_005.png",
+              "Idle/animations/idle/east/frame_006.png"
+            ]
+          },
           "walk": {
             "east": [
               "Idle/animations/walk/east/frame_000.png",
@@ -31,15 +38,9 @@
               "Idle/animations/walk/east/frame_002.png",
               "Idle/animations/walk/east/frame_003.png",
               "Idle/animations/walk/east/frame_004.png",
-              "Idle/animations/walk/east/frame_005.png"
-            ]
-          },
-          "idle": {
-            "east": [
-              "Idle/animations/idle/east/frame_000.png",
-              "Idle/animations/idle/east/frame_001.png",
-              "Idle/animations/idle/east/frame_002.png",
-              "Idle/animations/idle/east/frame_003.png"
+              "Idle/animations/walk/east/frame_005.png",
+              "Idle/animations/walk/east/frame_006.png",
+              "Idle/animations/walk/east/frame_007.png"
             ]
           },
           "shoot_arrow": {
@@ -49,8 +50,7 @@
               "Idle/animations/shoot_arrow/east/frame_002.png",
               "Idle/animations/shoot_arrow/east/frame_003.png",
               "Idle/animations/shoot_arrow/east/frame_004.png",
-              "Idle/animations/shoot_arrow/east/frame_005.png",
-              "Idle/animations/shoot_arrow/east/frame_006.png"
+              "Idle/animations/shoot_arrow/east/frame_005.png"
             ]
           },
           "death": {
@@ -61,13 +61,12 @@
               "Idle/animations/death/east/frame_003.png",
               "Idle/animations/death/east/frame_004.png",
               "Idle/animations/death/east/frame_005.png",
-              "Idle/animations/death/east/frame_006.png"
+              "Idle/animations/death/east/frame_006.png",
+              "Idle/animations/death/east/frame_007.png"
             ]
           }
         }
       }
     }
-  ],
-  "export_version": "3.1",
-  "export_date": "2026-10-23T04:07:34.914020"
+  ]
 }
