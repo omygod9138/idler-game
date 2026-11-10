@@ -10,7 +10,17 @@ export interface Clip {
   flash: HTMLCanvasElement[]
   /** row just below the feet in the first frame */
   foot: number
+  /** relative hold per frame (1 = one tick); absent = every frame holds 1 */
+  hold?: number[]
+  /** frame where the blow lands: hit reactions and VFX sync to it */
+  hit?: number
+  /** procedural effect drawn at the hit frame */
+  vfx?: 'slash'
 }
+
+/** Ticks a clip lasts, and ticks before frame `i` starts. */
+export const clipTicks = (c: Clip, upTo = c.frames.length) =>
+  c.hold ? c.hold.slice(0, upTo).reduce((a, b) => a + b, 0) : upTo
 
 export interface ArtSet {
   still: Clip
@@ -53,6 +63,16 @@ const ROLES: [Anim, RegExp][] = [
   ['attack', /attack|slash|strike|stab|shoot|cast|fireball/i],
   ['walk', /walk|run|march/i],
   ['idle', /idle|breath|stand/i],
+]
+
+/**
+ * Hand timing for generated clips: pick/reorder source frames, hold weights, impact frame.
+ * `role` makes the clip that art's default for that anim.
+ */
+const TUNING: { art: string; clip: RegExp; frames?: number[]; hold: number[]; hit: number; vfx?: Clip['vfx']; role?: Anim }[] = [
+  // Overhead slash. Source frame 1 has a doubled sword, so it is skipped. Quick lift, long hold at the
+  // top (anticipation), one-tick snap down covered by the smear, hit-stop on contact, slow settle.
+  { art: 'warrior', clip: /overhead/i, frames: [0, 2, 3, 4, 5, 6, 7, 8], hold: [1, 0.8, 0.8, 3, 2.2, 1.4, 1.2, 1.2], hit: 4, vfx: 'slash', role: 'attack' },
 ]
 
 /** On-screen height in world units (lane art is drawn at 2 canvas px per world unit). */
@@ -166,16 +186,22 @@ function buildSet(classId: string, raw: RawSet, hue?: number): ArtSet {
   const tint = (fs: HTMLCanvasElement[]) => (hue ? fs.map((f) => hueShift(f, hue)) : fs)
   const anims: ArtSet['anims'] = {}
   const extra: ArtSet['extra'] = {}
+  const id = ART[classId]!.id
+  const forced: ArtSet['anims'] = {}
   for (const [name, frames] of Object.entries(raw.clips)) {
-    const clip = makeClip(tint(frames))
+    const tune = TUNING.find((t) => t.art === id && t.clip.test(name))
+    const picked = tune?.frames ? tune.frames.map((i) => frames[i]!).filter(Boolean) : frames
+    const clip = makeClip(tint(picked))
+    if (tune) Object.assign(clip, { hold: tune.hold.slice(0, picked.length), hit: tune.hit, vfx: tune.vfx })
     extra[name] = clip
+    if (tune?.role) forced[tune.role] = clip
     const role = ROLES.find(([, re]) => re.test(name))?.[0]
     if (role && !anims[role]) anims[role] = clip
   }
+  Object.assign(anims, forced)
   const still = makeClip(tint(raw.still))
   const { top, bottom } = bounds(still.frames[0]!)
   const visible = bottom + 1 - top
-  const id = ART[classId]!.id
   return { still, anims, extra, visible, scale: (MOB_HEIGHT[id] ?? HERO_HEIGHT) / visible }
 }
 
