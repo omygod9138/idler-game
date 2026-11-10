@@ -3,6 +3,7 @@ import type { ClassDef } from '../types'
 // Base classes (rank I) + one rank II branch each.
 // COST per rank follows the reference game: I=1, II=2, III=3, IV=4, V=6.
 // Kit: basic (attack timer) + active (energy full); passive is rolled per duelist.
+// energyMax sets active cadence per class: supports cast more often than tanks.
 // Add more classes here — everything else is data-driven.
 
 const melee = { range: 24, speed: 34 }
@@ -13,7 +14,7 @@ function mob(
   row: ClassDef['row'] = 'front', isRanged = false,
 ): ClassDef {
   const basic = { name: isRanged ? 'Shot' : 'Strike', power: 1 }
-  return { id, name, rank: 1, cost: 0, row, ranged: isRanged, base, growth, basic, active, upgradesTo: [], sprite: id === 'slime' ? 'slime' : 'human', palette: id }
+  return { id, name, rank: 1, cost: 0, row, ranged: isRanged, base, growth, basic, active, energyMax: 100, upgradesTo: [], sprite: id === 'slime' ? 'slime' : 'human', palette: id }
 }
 
 export const CLASSES: Record<string, ClassDef> = {
@@ -23,6 +24,7 @@ export const CLASSES: Record<string, ClassDef> = {
     growth: { hp: 14, atk: 1.6, def: 0.9 },
     basic: { name: 'Slash', power: 1 },
     active: { id: 'cleave', name: 'Cleave', kind: 'cleave', power: 2.0, area: 28 },
+    energyMax: 120,
     upgradesTo: ['knight'], sprite: 'human', palette: 'warrior',
   },
   mage: {
@@ -31,6 +33,7 @@ export const CLASSES: Record<string, ClassDef> = {
     growth: { hp: 7, atk: 2.2, def: 0.3 },
     basic: { name: 'Arcane Bolt', power: 1 },
     active: { id: 'fireball', name: 'Fireball', kind: 'fireball', power: 1.6, area: 42 },
+    energyMax: 100,
     upgradesTo: ['wizard'], sprite: 'human', palette: 'mage',
   },
   priest: {
@@ -39,6 +42,7 @@ export const CLASSES: Record<string, ClassDef> = {
     growth: { hp: 8, atk: 1.2, def: 0.4 },
     basic: { name: 'Rebuke', power: 1 },
     active: { id: 'heal', name: 'Heal', kind: 'heal', power: 2.6 },
+    energyMax: 80,
     upgradesTo: ['bishop'], sprite: 'human', palette: 'priest',
   },
   archer: {
@@ -47,6 +51,7 @@ export const CLASSES: Record<string, ClassDef> = {
     growth: { hp: 8, atk: 1.8, def: 0.4 },
     basic: { name: 'Quick Shot', power: 1 },
     active: { id: 'volley', name: 'Volley', kind: 'volley', power: 0.9, hits: 3 },
+    energyMax: 90,
     upgradesTo: ['ranger'], sprite: 'human', palette: 'archer',
   },
 
@@ -57,6 +62,7 @@ export const CLASSES: Record<string, ClassDef> = {
     growth: { hp: 22, atk: 2, def: 1.5 },
     basic: { name: 'Lance Thrust', power: 1 },
     active: { id: 'guard', name: 'Shield Wall', kind: 'guard', power: 0.5 },
+    energyMax: 130,
     upgradesTo: [], sprite: 'human', palette: 'knight',
   },
   wizard: {
@@ -65,6 +71,7 @@ export const CLASSES: Record<string, ClassDef> = {
     growth: { hp: 10, atk: 3.2, def: 0.5 },
     basic: { name: 'Mana Lance', power: 1 },
     active: { id: 'meteor', name: 'Meteor', kind: 'fireball', power: 2.4, area: 60 },
+    energyMax: 100,
     upgradesTo: [], sprite: 'human', palette: 'wizard',
   },
   bishop: {
@@ -73,6 +80,7 @@ export const CLASSES: Record<string, ClassDef> = {
     growth: { hp: 12, atk: 1.8, def: 0.6 },
     basic: { name: 'Judgement', power: 1 },
     active: { id: 'smite', name: 'Holy Smite', kind: 'smite', power: 2.2, area: 40 },
+    energyMax: 80,
     upgradesTo: [], sprite: 'human', palette: 'bishop',
   },
   ranger: {
@@ -81,6 +89,7 @@ export const CLASSES: Record<string, ClassDef> = {
     growth: { hp: 11, atk: 2.7, def: 0.6 },
     basic: { name: 'Piercing Shot', power: 1 },
     active: { id: 'rain', name: 'Arrow Rain', kind: 'volley', power: 1.0, hits: 5 },
+    energyMax: 90,
     upgradesTo: [], sprite: 'human', palette: 'ranger',
   },
 

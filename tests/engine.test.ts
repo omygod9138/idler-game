@@ -168,7 +168,7 @@ describe('3-slot kit', () => {
     const rng = makeRng({ seed: 3 })
     const b = createBattle([mk('priest', 5, 'eager')], [mk('troll', 5)], rng)
     const priest = b.units[0]!
-    priest.energy = 100
+    priest.energy = priest.energyMax
     priest.atkTimer = 99 // basic attack nowhere near ready
     stepBattle(b, 0.05, rng)
     expect(b.events.some((e) => e.t === 'skill' && e.src === priest.uid)).toBe(true)
@@ -178,7 +178,7 @@ describe('3-slot kit', () => {
   it('Eager starts with energy; Leech heals on basics; Spiked reflects; Second Wind triggers once', () => {
     const rng = makeRng({ seed: 5 })
     const eager = createBattle([mk('warrior', 5, 'eager')], [mk('slime', 1)], rng)
-    expect(eager.units[0]!.energy).toBe(50)
+    expect(eager.units[0]!.energy).toBe(getClass('warrior').energyMax / 2)
 
     const leech = createBattle([mk('warrior', 10, 'leech')], [mk('troll', 10)], rng)
     simulate(leech, rng)
@@ -194,5 +194,29 @@ describe('3-slot kit', () => {
     const wind = createBattle([mk('warrior', 3, 'secondWind')], [mk('troll', 12)], rng)
     simulate(wind, rng)
     expect(wind.events.filter((e) => e.t === 'passive').length).toBe(1)
+  })
+
+  it('supports fill their energy bar faster than tanks', () => {
+    expect(getClass('priest').energyMax).toBeLessThan(getClass('warrior').energyMax)
+  })
+
+  it('Undying survives one lethal hit; Stalwart takes less damage; Reaper refills energy on kills', () => {
+    const rng = makeRng({ seed: 9 })
+    const und = createBattle([mk('mage', 1, 'undying')], [mk('troll', 15)], rng)
+    simulate(und, rng)
+    expect(und.events.filter((e) => e.t === 'passive' && e.src === und.units[0]!.uid)).toHaveLength(1)
+
+    const dmgTaken = (passive?: string) => {
+      const r = makeRng({ seed: 21 })
+      const b = createBattle([mk('warrior', 5, passive)], [mk('orc', 5)], r)
+      for (let i = 0; i < 60; i++) stepBattle(b, 0.05, r)
+      return b.units[0]!.maxHp - b.units[0]!.hp
+    }
+    expect(dmgTaken('stalwart')).toBeLessThan(dmgTaken())
+
+    const reap = createBattle([mk('warrior', 20, 'reaper')], [mk('slime', 1)], rng)
+    const w = reap.units[0]!
+    simulate(reap, rng)
+    expect(w.energy).toBeGreaterThanOrEqual(w.energyMax * 0.35)
   })
 })

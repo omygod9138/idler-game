@@ -71,7 +71,7 @@ const slots: GearSlot[] = ['weapon', 'armor', 'accessory']
       <div class="kit">
         <div><span class="tag">PASSIVE</span> <b>{{ getPassive(sel.d.passive)?.name ?? '—' }}</b> <span class="muted">{{ getPassive(sel.d.passive)?.desc }}</span></div>
         <div><span class="tag">BASIC</span> <b>{{ sel.cls.basic.name }}</b> <span class="muted">{{ Math.round(sel.cls.basic.power * 100) }}% ATK · +energy</span></div>
-        <div><span class="tag">ACTIVE</span> <b>{{ sel.cls.active.name }}</b> <span class="muted">casts at full energy</span></div>
+        <div><span class="tag">ACTIVE</span> <b>{{ sel.cls.active.name }}</b> <span class="muted">casts at {{ sel.cls.energyMax }} energy</span></div>
       </div>
 
       <div class="lv">

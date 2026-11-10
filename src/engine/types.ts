@@ -42,7 +42,20 @@ export interface PassiveDef {
   stats?: Partial<Record<'hp' | 'atk' | 'def' | 'crit' | 'haste', number>>
   /** extra fraction of energy gained */
   energyGain?: number
+  /** fraction of the energy bar filled at battle start */
   startEnergy?: number
+  /** fraction of the energy bar refilled on a killing blow */
+  killEnergy?: number
+  /** chance for a basic attack to strike again */
+  extraBasic?: number
+  /** fraction of max HP regenerated per second */
+  regen?: number
+  /** fraction of incoming damage ignored */
+  damageReduction?: number
+  /** extra fraction of active power */
+  activePower?: number
+  /** once per battle, a lethal hit leaves the duelist at 1 HP */
+  undying?: boolean
   /** fraction of basic-attack damage healed */
   lifesteal?: number
   /** fraction of damage taken reflected to the attacker */
@@ -75,6 +88,8 @@ export interface ClassDef {
   basic: BasicDef
   /** fired automatically when energy is full */
   active: SkillDef
+  /** energy needed to cast the active: supports fill faster than tanks */
+  energyMax: number
   /** class ids this can rank up into */
   upgradesTo: string[]
   /** sprite key + palette key used by the renderer */
@@ -195,6 +210,7 @@ export interface Combatant {
   maxHp: number
   x: number
   energy: number
+  energyMax: number
   atkTimer: number
   alive: boolean
   /** guard buff: damage taken multiplier & remaining seconds */
@@ -202,8 +218,8 @@ export interface Combatant {
   guardT: number
   level: number
   passive?: string
-  /** second wind already used this battle */
-  windUsed: boolean
+  /** once-per-battle passive (Second Wind / Undying) already used */
+  onceUsed: boolean
 }
 
 export type BattleEvent =

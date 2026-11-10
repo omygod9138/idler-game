@@ -318,7 +318,7 @@ export class Renderer {
     if (u.guard < 1) { c.fillStyle = '#4fa3ff'; c.fillRect(x, y - 2, 14, 1) }
     if (u.side === 'ally') {
       c.fillStyle = '#ffd54a'
-      c.fillRect(x, y + 3, Math.round((14 * u.energy) / 100), 1)
+      c.fillRect(x, y + 3, Math.round((14 * u.energy) / u.energyMax), 1)
     }
   }
 
