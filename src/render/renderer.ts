@@ -12,11 +12,13 @@ const GROUND_Y = 54
 const FPS = 12
 /** Keep drawing a finished battle this long so the last death animation plays out. */
 const AFTERMATH = 1.0
+/** Seconds without x change before a unit counts as standing (> one 100ms logic tick). */
+const MOVE_HOLD = 0.15
 
 interface Floater { x: number; y: number; text: string; color: string; t: number; ttl: number }
 interface Projectile { x0: number; x1: number; y: number; t: number; ttl: number; color: string }
 interface Burst { x: number; r: number; t: number; ttl: number; color: string; label: string }
-interface UnitFx { anim: Anim; clip?: Clip; t: number; fps: number; hurt: number; flashCd: number; lastX: number; deathT: number }
+interface UnitFx { anim: Anim; clip?: Clip; t: number; fps: number; hurt: number; flashCd: number; lastX: number; stillT: number; deathT: number }
 
 interface LaneFx {
   battle: BattleState | null
@@ -147,7 +149,7 @@ export class Renderer {
 
   private unitFx(fx: LaneFx, u: Combatant): UnitFx {
     let f = fx.fx.get(u.uid)
-    if (!f) { f = { anim: 'idle', t: Math.random(), fps: FPS, hurt: 0, flashCd: 0, lastX: u.x, deathT: 0 }; fx.fx.set(u.uid, f) }
+    if (!f) { f = { anim: 'idle', t: Math.random(), fps: FPS, hurt: 0, flashCd: 0, lastX: u.x, stillT: 1, deathT: 0 }; fx.fx.set(u.uid, f) }
     return f
   }
 
@@ -239,7 +241,10 @@ export class Renderer {
         if (!f.clip || f.t >= f.clip.frames.length / f.fps) { f.anim = 'idle'; f.clip = undefined; f.fps = FPS }
       }
       if (u.alive && f.anim !== 'attack') {
-        const moving = Math.abs(u.x - f.lastX) > 0.01
+        // Logic ticks every 100ms but we draw every frame, so x only changes on some frames.
+        // Count as moving until x has stayed put for longer than one logic tick.
+        f.stillT = Math.abs(u.x - f.lastX) > 0.01 ? 0 : f.stillT + dt
+        const moving = f.stillT < MOVE_HOLD
         const want: Anim = moving && !b.over ? 'walk' : 'idle'
         if (f.anim !== want) { f.anim = want; f.clip = a?.anims[want] }
       }
