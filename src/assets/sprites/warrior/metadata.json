@@ -126,6 +126,20 @@
               "Idle/animations/idle/east/frame_005.png",
               "Idle/animations/idle/east/frame_006.png"
             ]
+          },
+          "overhead-slash-v2": {
+            "east": [
+              "Idle/animations/overhead-slash-v2/east/frame_000.png",
+              "Idle/animations/overhead-slash-v2/east/frame_001.png",
+              "Idle/animations/overhead-slash-v2/east/frame_002.png",
+              "Idle/animations/overhead-slash-v2/east/frame_003.png",
+              "Idle/animations/overhead-slash-v2/east/frame_004.png",
+              "Idle/animations/overhead-slash-v2/east/frame_005.png",
+              "Idle/animations/overhead-slash-v2/east/frame_006.png",
+              "Idle/animations/overhead-slash-v2/east/frame_007.png",
+              "Idle/animations/overhead-slash-v2/east/frame_008.png",
+              "Idle/animations/overhead-slash-v2/east/frame_009.png"
+            ]
           }
         }
       }
