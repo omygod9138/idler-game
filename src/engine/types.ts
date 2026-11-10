@@ -62,6 +62,26 @@ export interface PassiveDef {
   thorns?: number
   /** once per battle below 30% HP: heal this fraction of max HP */
   secondWind?: number
+  /** extra damage fraction against targets below 30% HP */
+  executeBonus?: number
+}
+
+/** All passives on a combatant (duelist passive + gear passives) folded into one bag of modifiers. */
+export interface PassiveMods {
+  energyGain: number
+  startEnergy: number
+  killEnergy: number
+  extraBasic: number
+  regen: number
+  damageReduction: number
+  activePower: number
+  lifesteal: number
+  thorns: number
+  executeBonus: number
+  secondWind: number
+  /** name shown when the once-per-battle passive procs */
+  undying?: string
+  secondWindName?: string
 }
 
 export interface SkillDef {
@@ -105,6 +125,8 @@ export interface Gear {
   hp: number
   atk: number
   def: number
+  /** gear passive id: minor on rare/epic, major on legendary/mythic */
+  passive?: string
 }
 
 export interface Duelist {
@@ -218,6 +240,7 @@ export interface Combatant {
   guardT: number
   level: number
   passive?: string
+  mods: PassiveMods
   /** once-per-battle passive (Second Wind / Undying) already used */
   onceUsed: boolean
 }

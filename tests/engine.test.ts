@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyOffline, assign, challengeDuel, computeStats, createBattle, gatherCandidates, hire, load, newGame,
   OUTPOSTS, save, simulate, tick, upgradeFacility, forge, equip, rankUp, TEAM_SIZE, getClass, normalize,
-  PASSIVES, stepBattle,
+  PASSIVES, stepBattle, GEAR_PASSIVES_MINOR, GEAR_PASSIVES_MAJOR, duelistStats,
 } from '../src/engine'
 import { makeRng } from '../src/engine/rng'
 
@@ -218,5 +218,34 @@ describe('3-slot kit', () => {
     const w = reap.units[0]!
     simulate(reap, rng)
     expect(w.energy).toBeGreaterThanOrEqual(w.energyMax * 0.35)
+  })
+})
+
+describe('gear passives', () => {
+  it('common gear has none; rare/epic roll minor; legendary/mythic roll major', () => {
+    const s = newGame(31)
+    s.gold = 1e9; s.materials.ore = 1e6; s.facilities.blacksmith = 10
+    for (let i = 0; i < 300; i++) forge(s)
+    const gear = Object.values(s.gear)
+    for (const g of gear) {
+      if (g.rarity === 'common') expect(g.passive).toBeUndefined()
+      else if (g.rarity === 'rare' || g.rarity === 'epic') expect(GEAR_PASSIVES_MINOR[g.passive!]).toBeDefined()
+      else expect(GEAR_PASSIVES_MAJOR[g.passive!]).toBeDefined()
+    }
+    expect(gear.some((g) => g.passive)).toBe(true)
+  })
+
+  it('stack with the duelist passive in stats and battle', () => {
+    const s = newGame(32)
+    const d = s.duelists[s.lanes[0]!.squad[0]!]!
+    d.passive = 'brawler'
+    const before = duelistStats(d, s.gear).atk
+    s.gear.x = { id: 'x', name: 'Test Blade', slot: 'weapon', rarity: 'rare', hp: 0, atk: 0, def: 0, passive: 'g_honed' }
+    s.gear.y = { id: 'y', name: 'Test Charm', slot: 'accessory', rarity: 'legendary', hp: 0, atk: 0, def: 0, passive: 'g_phoenix' }
+    equip(s, d.id, 'x'); equip(s, d.id, 'y')
+    expect(duelistStats(d, s.gear).atk).toBeGreaterThan(before)
+    for (let i = 0; i < 50 && !s.lanes[0]!.battle; i++) tick(s, 0.1)
+    const u = s.lanes[0]!.battle!.units.find((x) => x.ref === d.id)!
+    expect(u.mods.undying).toBe('Phoenix Plume')
   })
 })

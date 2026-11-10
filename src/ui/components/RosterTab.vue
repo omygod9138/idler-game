@@ -100,7 +100,7 @@ const slots: GearSlot[] = ['weapon', 'armor', 'accessory']
         <div v-for="slot in slots" :key="slot" class="gslot">
           <span class="muted">{{ slot }}</span>
           <template v-if="sel.d.gear[slot] && s.gear[sel.d.gear[slot]!]">
-            <span :style="{ color: RARITY_COLOR[s.gear[sel.d.gear[slot]!]!.rarity] }">{{ s.gear[sel.d.gear[slot]!]!.name }}</span>
+            <span :style="{ color: RARITY_COLOR[s.gear[sel.d.gear[slot]!]!.rarity] }" :title="getPassive(s.gear[sel.d.gear[slot]!]!.passive)?.desc">{{ s.gear[sel.d.gear[slot]!]!.name }}<template v-if="s.gear[sel.d.gear[slot]!]!.passive"> · {{ getPassive(s.gear[sel.d.gear[slot]!]!.passive)?.name }}</template></span>
             <button class="btn sm" @click="game.act(unequip, sel.d.id, slot)">×</button>
           </template>
           <span v-else class="muted">— (Armory tab)</span>

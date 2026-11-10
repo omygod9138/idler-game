@@ -1,6 +1,6 @@
 import type { BattleState, Combatant, Side, Stats } from './types'
 import { getClass } from './data/classes'
-import { getPassive } from './data/passives'
+import { mergeMods } from './data/passives'
 import type { Rng } from './rng'
 
 // 1-D lane auto-battle. Allies on the left facing right, enemies on the right.
@@ -19,6 +19,8 @@ export interface CombatantSpec {
   stats: Stats
   /** passive id (kit slot 1); monsters have none */
   passive?: string
+  /** passive ids from equipped gear */
+  gearPassives?: string[]
 }
 
 export function createBattle(allies: CombatantSpec[], enemies: CombatantSpec[], rng: Rng): BattleState {
@@ -33,6 +35,7 @@ function place(b: BattleState, specs: CombatantSpec[], side: Side, rng: Rng) {
   let back = 0
   for (const s of specs) {
     const cls = getClass(s.classId)
+    const mods = mergeMods([s.passive, ...(s.gearPassives ?? [])])
     const row = cls.row
     const slot = row === 'front' ? front++ : back++
     // start close to the centre so melee meets in ~1s instead of ~3s
@@ -41,9 +44,9 @@ function place(b: BattleState, specs: CombatantSpec[], side: Side, rng: Rng) {
     const u: Combatant = {
       uid: ++b.uidCounter, side, ref: s.ref, name: s.name, classId: s.classId, level: s.level,
       stats: s.stats, hp: s.stats.hp, maxHp: s.stats.hp, x,
-      energy: Math.round(cls.energyMax * (getPassive(s.passive)?.startEnergy ?? 0)), energyMax: cls.energyMax,
+      energy: Math.round(cls.energyMax * mods.startEnergy), energyMax: cls.energyMax,
       atkTimer: s.stats.interval * (0.3 + rng() * 0.7), alive: true, guard: 1, guardT: 0,
-      passive: s.passive, onceUsed: false,
+      passive: s.passive, mods, onceUsed: false,
     }
     b.units.push(u)
   }
@@ -69,35 +72,34 @@ function emit(b: BattleState, e: BattleState['events'][number]) {
 }
 
 function gainEnergy(u: Combatant, amount: number) {
-  const mult = 1 + (getPassive(u.passive)?.energyGain ?? 0)
+  const mult = 1 + u.mods.energyGain
   u.energy = Math.min(u.energyMax, u.energy + amount * mult)
 }
 
-function proc(b: BattleState, u: Combatant) {
-  emit(b, { t: 'passive', src: u.uid, name: getPassive(u.passive)!.name })
+function proc(b: BattleState, u: Combatant, name: string) {
+  emit(b, { t: 'passive', src: u.uid, name })
 }
 
 /** Apply raw damage to a unit: emits damage/death, triggers Undying / Second Wind / Reaper. */
 function hurt(b: BattleState, dst: Combatant, amount: number, crit: boolean, src?: Combatant) {
-  const p = getPassive(dst.passive)
+  const p = dst.mods
   dst.hp -= amount
   emit(b, { t: 'damage', dst: dst.uid, amount, crit })
-  if (dst.hp <= 0 && p?.undying && !dst.onceUsed) {
+  if (dst.hp <= 0 && p.undying && !dst.onceUsed) {
     dst.onceUsed = true
     dst.hp = 1
-    proc(b, dst)
+    proc(b, dst, p.undying)
   }
   if (dst.hp <= 0) {
     dst.hp = 0
     dst.alive = false
     emit(b, { t: 'death', dst: dst.uid })
-    const reap = getPassive(src?.passive)?.killEnergy
-    if (src?.alive && reap) gainEnergy(src, src.energyMax * reap)
+    if (src?.alive && src.mods.killEnergy) gainEnergy(src, src.energyMax * src.mods.killEnergy)
     return
   }
-  if (p?.secondWind && !dst.onceUsed && dst.hp < dst.maxHp * 0.3) {
+  if (p.secondWind && !dst.onceUsed && dst.hp < dst.maxHp * 0.3) {
     dst.onceUsed = true
-    proc(b, dst)
+    proc(b, dst, p.secondWindName!)
     heal(b, dst, dst.maxHp * p.secondWind)
   }
 }
@@ -107,14 +109,15 @@ function dealDamage(b: BattleState, src: Combatant, dst: Combatant, mult: number
   const crit = rng() < src.stats.crit
   const variance = 0.9 + rng() * 0.2
   const raw = src.stats.atk * mult * variance * (crit ? 1.75 : 1)
-  const dr = 1 - (getPassive(dst.passive)?.damageReduction ?? 0)
-  const reduced = raw * (60 / (60 + dst.stats.def)) * dst.guard * dr
+  const dr = 1 - dst.mods.damageReduction
+  const execute = dst.hp < dst.maxHp * 0.3 ? 1 + src.mods.executeBonus : 1
+  const reduced = raw * (60 / (60 + dst.stats.def)) * dst.guard * dr * execute
   const amount = Math.max(1, Math.round(reduced))
   hurt(b, dst, amount, crit, src)
   if (dst.alive) gainEnergy(dst, ENERGY_PER_HIT)
-  const lifesteal = basic ? getPassive(src.passive)?.lifesteal : 0
+  const lifesteal = basic ? src.mods.lifesteal : 0
   if (lifesteal && src.alive) heal(b, src, amount * lifesteal)
-  const thorns = getPassive(dst.passive)?.thorns
+  const thorns = dst.mods.thorns
   if (thorns && src.alive) hurt(b, src, Math.max(1, Math.round(amount * thorns)), false)
 }
 
@@ -129,7 +132,7 @@ function heal(b: BattleState, dst: Combatant, amount: number) {
 /** Kit slot 3: the class active, fired as soon as energy is full. */
 function castActive(b: BattleState, u: Combatant, target: Combatant, rng: Rng) {
   const base = getClass(u.classId).active
-  const sk = { ...base, power: base.power * (1 + (getPassive(u.passive)?.activePower ?? 0)) }
+  const sk = { ...base, power: base.power * (1 + u.mods.activePower) }
   emit(b, { t: 'skill', src: u.uid, name: sk.name, x: target.x, area: sk.area, kind: sk.kind })
   const enemies = alive(b, foe(u.side))
   const friends = alive(b, u.side)
@@ -167,7 +170,7 @@ export function stepBattle(b: BattleState, dt: number, rng: Rng): void {
   for (const u of b.units) {
     if (!u.alive) continue
     if (u.guardT > 0 && (u.guardT -= dt) <= 0) u.guard = 1
-    const regen = getPassive(u.passive)?.regen
+    const regen = u.mods.regen
     if (regen) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * regen * dt)
     const target = nearest(b, u)
     if (!target) break
@@ -194,7 +197,7 @@ export function stepBattle(b: BattleState, dt: number, rng: Rng): void {
     emit(b, { t: 'attack', src: u.uid, dst: target.uid, ranged: cls.ranged })
     dealDamage(b, u, target, cls.basic.power, rng, true)
     if (u.alive) gainEnergy(u, ENERGY_PER_ATTACK)
-    const extra = getPassive(u.passive)?.extraBasic
+    const extra = u.mods.extraBasic
     if (extra && u.alive && target.alive && rng() < extra) {
       emit(b, { t: 'attack', src: u.uid, dst: target.uid, ranged: cls.ranged })
       dealDamage(b, u, target, cls.basic.power, rng, true)

@@ -7,8 +7,8 @@ import {
   QUARTERS, RANK_UP, RARITIES, RARITY_MULT, SUBCLASSES_ENABLED, facilityUpgradeCost,
 } from './data/world'
 import { makeRng, pick, randInt, type Rng } from './rng'
-import { PASSIVES, rollPassive } from './data/passives'
-import { computeStats, duelistStats, expToNext } from './stats'
+import { PASSIVES, rollGearPassive, rollPassive } from './data/passives'
+import { computeStats, duelistStats, equippedGear, expToNext } from './stats'
 import { createBattle, simulate, stepBattle, type CombatantSpec } from './battle'
 
 export const SAVE_VERSION = 1
@@ -97,7 +97,11 @@ function addExp(s: GameState, d: Duelist, amount: number): boolean {
 function allySpecs(s: GameState, lane: LaneState): CombatantSpec[] {
   return lane.squad.map((id) => {
     const d = s.duelists[id]!
-    return { ref: d.id, name: d.name, classId: d.classId, level: d.level, passive: d.passive, stats: duelistStats(d, s.gear) }
+    return {
+      ref: d.id, name: d.name, classId: d.classId, level: d.level, passive: d.passive,
+      gearPassives: equippedGear(d, s.gear).map((g) => g.passive).filter((p): p is string => !!p),
+      stats: duelistStats(d, s.gear),
+    }
   })
 }
 
@@ -418,6 +422,7 @@ function rollGear(s: GameState, rng: Rng, rarityBonus: number): Gear {
     id: nid(s, 'g'), slot, rarity,
     name: `${rarity[0]!.toUpperCase()}${rarity.slice(1)} ${pick(rng, b.names)}`,
     hp: Math.round(b.hp * scale), atk: Math.round(b.atk * scale), def: Math.round(b.def * scale),
+    passive: rollGearPassive(rng, rarity),
   }
   s.gear[g.id] = g
   return g
@@ -453,7 +458,7 @@ export function unequip(s: GameState, duelistId: string, slot: GearSlot): Action
   return null
 }
 
-export function sellPrice(g: Gear) { return Math.round(40 * RARITY_MULT[g.rarity] * (1 + (g.hp + g.atk * 6 + g.def * 5) / 40)) }
+export function sellPrice(g: Gear) { return Math.round(40 * RARITY_MULT[g.rarity] * (1 + (g.hp + g.atk * 6 + g.def * 5) / 40) * (g.passive ? 1.5 : 1)) }
 
 export function sell(s: GameState, gearId: string): ActionResult {
   const g = s.gear[gearId]
