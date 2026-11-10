@@ -19,7 +19,7 @@ interface Burst { x: number; r: number; t: number; ttl: number; color: string; l
 /** Sword smear: a crescent swept from behind the head down to the front, around (x, y). */
 interface Slash { x: number; y: number; dir: 1 | -1; r: number; t: number; ttl: number }
 /** Impact star + chips at the point of contact. */
-interface Spark { x: number; y: number; dir: 1 | -1; t: number; ttl: number; big: boolean }
+interface Spark { x: number; y: number; dir: 1 | -1; t: number; ttl: number; big: boolean; rays: { a: number; len: number }[] }
 /** Work held back until an attack clip reaches its hit frame. */
 interface Later { t: number; run: () => void }
 interface UnitFx { anim: Anim; clip?: Clip; t: number; fps: number; hurt: number; flashCd: number; lastX: number; deathT: number }
@@ -184,7 +184,9 @@ export class Renderer {
     const dir = d.x >= s.x ? 1 : -1
     const h = this.height(s.classId)
     fx.slashes.push({ x: s.x + dir * h * 0.1, y: this.feetY(s) - h * 0.52, dir, r: h * 0.5, t: 0, ttl: 0.24 })
-    fx.sparks.push({ x: d.x - dir * this.height(d.classId) * 0.18, y: this.midY(d), dir, t: 0, ttl: 0.24, big: false })
+    // spray mostly away from the attacker, a few strays back
+    const rays = Array.from({ length: 11 }, (_, i) => ({ a: i < 8 ? rnd(-1.2, 1.0) : rnd(2.2, 4.0), len: rnd(5, 11) }))
+    fx.sparks.push({ x: d.x - dir * this.height(d.classId) * 0.18, y: this.midY(d), dir, t: 0, ttl: 0.3, big: false, rays })
     fx.shake = Math.max(fx.shake, 0.1)
   }
 
@@ -346,31 +348,51 @@ export class Renderer {
       const cos = Math.cos(a) * p.dir, sin = Math.sin(a)
       for (let d = 0; d <= w; d += px) {
         const rr = p.r - d
-        c.fillStyle = d < px * 1.5 ? '#ffffff' : d < w * 0.55 ? '#d8f0ff' : '#7fb4e6'
+        c.fillStyle = d < px * 1.5 ? '#ffffff' : d < w * 0.35 ? '#ffd9c4' : d < w * 0.7 ? '#ff5240' : '#b0182c'
         c.fillRect(Math.round((p.x + cos * rr) / px) * px, Math.round((p.y + sin * rr) / px) * px, px, px)
+      }
+    }
+    // speed streaks thrown forward off the blade's path once it lands
+    if (head >= 1 && k < 0.8) {
+      const reach = p.r * (0.6 + k * 1.2)
+      for (const [dy, len, col] of [[-3, 1, '#ff5240'], [0, 1.3, '#ffffff'], [2.5, 0.8, '#b0182c']] as const) {
+        const y = Math.round((p.y + p.r * 0.35 + dy) / px) * px
+        const x0 = p.x + p.dir * p.r * 0.7
+        c.fillStyle = col
+        c.fillRect(Math.min(x0, x0 + p.dir * reach * len), y, Math.abs(reach * len * (1 - k)), px)
       }
     }
   }
 
-  /** Four-point impact star that pops then shrinks, plus chips thrown away from the attacker. */
+  /** White impact star that pops then shrinks, with a red streak spray and falling droplets. */
   private drawSpark(p: Spark) {
     const c = this.ctx
     const k = p.t / p.ttl
     const px = 0.5
-    const len = (p.big ? 9 : 6) * (k < 0.25 ? k / 0.25 : 1 - (k - 0.25) / 0.75)
-    const x = Math.round(p.x / px) * px, y = Math.round(p.y / px) * px
+    const q = (v: number) => Math.round(v / px) * px
+    const x = q(p.x), y = q(p.y)
+    const len = (p.big ? 11 : 7) * (k < 0.2 ? k / 0.2 : Math.max(0, 1 - (k - 0.2) / 0.5))
     for (let i = -len; i <= len; i += px) {
-      const tip = Math.abs(i) > len * 0.55
-      c.fillStyle = tip ? '#ffd54a' : '#ffffff'
-      c.fillRect(x + i, y, px, px)
-      if (Math.abs(i) <= len * 0.7) c.fillRect(x, y + i * 0.8, px, px)
+      c.fillStyle = Math.abs(i) > len * 0.6 ? '#ffd54a' : '#ffffff'
+      c.fillRect(x + i, y, px, px * (Math.abs(i) < len * 0.3 ? 2 : 1))
+      if (Math.abs(i) <= len * 0.75) c.fillRect(x, y + i * 0.8, px * (Math.abs(i) < len * 0.3 ? 2 : 1), px)
     }
-    if (k < 0.5) { c.fillStyle = '#ffffff'; c.fillRect(x - px, y - px, px * 3, px * 3) }
-    c.fillStyle = '#ffe9a8'
-    for (let i = 0; i < 5; i++) {
-      const ang = -1.1 + i * 0.45
-      const d = 3 + k * 10
-      c.fillRect(Math.round((x + Math.cos(ang) * d * p.dir) / px) * px, Math.round((y + Math.sin(ang) * d + k * k * 8) / px) * px, px, px)
+    if (k < 0.35) { c.fillStyle = '#ffffff'; c.fillRect(x - px * 2, y - px * 2, px * 5, px * 5) }
+    // streaks: each ray shoots out, its tail chases the head, then drops as droplets
+    for (const r of p.rays) {
+      const ang = r.a
+      const cos = Math.cos(ang) * p.dir, sin = Math.sin(ang)
+      const headD = 2 + r.len * Math.min(1, k * 2.2)
+      const tailD = 2 + r.len * Math.max(0, k * 2.2 - 0.6)
+      for (let d = tailD; d <= headD; d += px) {
+        c.fillStyle = d > headD - 1 ? '#ff8a6a' : '#e0283a'
+        c.fillRect(q(x + cos * d), q(y + sin * d), px, px)
+      }
+      if (k > 0.45) {
+        const fall = (k - 0.45) * 22
+        c.fillStyle = '#9a1424'
+        c.fillRect(q(x + cos * headD), q(y + sin * headD + fall * fall * 0.15), px, px)
+      }
     }
   }
 
