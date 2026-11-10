@@ -70,9 +70,9 @@ const ROLES: [Anim, RegExp][] = [
  * `role` makes the clip that art's default for that anim.
  */
 const TUNING: { art: string; clip: RegExp; frames?: number[]; hold: number[]; hit: number; vfx?: Clip['vfx']; role?: Anim }[] = [
-  // Overhead slash. Source frame 1 has a doubled sword, so it is skipped. Quick lift, long hold at the
-  // top (anticipation), one-tick snap down covered by the smear, hit-stop on contact, slow settle.
-  { art: 'warrior', clip: /overhead/i, frames: [0, 2, 3, 4, 5, 6, 7, 8], hold: [1, 0.8, 0.8, 3, 2.2, 1.4, 1.2, 1.2], hit: 4, vfx: 'slash', role: 'attack' },
+  // Overhead slash (v2 frames, shield kept). Quick lift, blade cocked back over the shoulder and held
+  // (anticipation; one duplicate hold frame dropped), fast snap through, hit-stop on contact, slow settle.
+  { art: 'warrior', clip: /^overhead-slash-v2$/, frames: [0, 1, 2, 3, 5, 6, 7, 8, 9], hold: [0.8, 0.8, 0.8, 1, 2.4, 0.7, 2.2, 1.4, 1.2], hit: 6, vfx: 'slash', role: 'attack' },
 ]
 
 /** On-screen height in world units (lane art is drawn at 2 canvas px per world unit). */
