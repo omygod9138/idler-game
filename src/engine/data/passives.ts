@@ -13,6 +13,7 @@ export const PASSIVES: Record<string, PassiveDef> = {
   keen: { id: 'keen', name: 'Keen Eye', desc: '+10% crit chance', stats: { crit: 0.1 } },
   focused: { id: 'focused', name: 'Focused', desc: '+30% energy gain', energyGain: 0.3 },
   eager: { id: 'eager', name: 'Eager', desc: 'Starts battle with half energy', startEnergy: 0.5 },
+  primed: { id: 'primed', name: 'Primed', desc: 'Starts battle with full energy', startEnergy: 1 },
   flurry: { id: 'flurry', name: 'Flurry', desc: '15% chance for a basic attack to strike twice', extraBasic: 0.15 },
   reaper: { id: 'reaper', name: 'Reaper', desc: 'Killing blows refill 35% energy', killEnergy: 0.35 },
   trollblood: { id: 'trollblood', name: 'Troll Blood', desc: 'Regenerates 1.5% max HP per second', regen: 0.015 },

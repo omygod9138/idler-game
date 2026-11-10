@@ -179,6 +179,8 @@ describe('3-slot kit', () => {
     const rng = makeRng({ seed: 5 })
     const eager = createBattle([mk('warrior', 5, 'eager')], [mk('slime', 1)], rng)
     expect(eager.units[0]!.energy).toBe(getClass('warrior').energyMax / 2)
+    const primed = createBattle([mk('warrior', 5, 'primed')], [mk('slime', 1)], rng)
+    expect(primed.units[0]!.energy).toBe(getClass('warrior').energyMax)
 
     const leech = createBattle([mk('warrior', 10, 'leech')], [mk('troll', 10)], rng)
     simulate(leech, rng)
