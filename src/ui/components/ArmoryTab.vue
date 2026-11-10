@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useGame } from '@/stores/game'
-import { equip, equippedBy, forge, forgeCost, sell, sellPrice, RARITIES, RARITY_COLOR, type Gear } from '@/engine'
+import { equip, equippedBy, forge, forgeCost, getPassive, sell, sellPrice, RARITIES, RARITY_COLOR, type Gear } from '@/engine'
 
 const game = useGame()
 const s = computed(() => game.state)
@@ -31,12 +31,13 @@ function sellAllCommon() {
       <span class="muted">Equip target: <b>{{ selName ?? '—' }}</b> (select in Squads)</span>
     </div>
     <table>
-      <thead><tr><th>Item</th><th>Slot</th><th>HP</th><th>ATK</th><th>DEF</th><th>Owner</th><th></th></tr></thead>
+      <thead><tr><th>Item</th><th>Slot</th><th>HP</th><th>ATK</th><th>DEF</th><th>Passive</th><th>Owner</th><th></th></tr></thead>
       <tbody>
         <tr v-for="g in items" :key="g.id">
           <td :style="{ color: RARITY_COLOR[g.rarity] }">{{ g.name }}</td>
           <td class="muted">{{ g.slot }}</td>
           <td>{{ g.hp || '' }}</td><td>{{ g.atk || '' }}</td><td>{{ g.def || '' }}</td>
+          <td :title="getPassive(g.passive)?.desc">{{ getPassive(g.passive)?.name ?? '' }}</td>
           <td class="muted">{{ owners[g.id] ? s.duelists[owners[g.id]!]?.name : '' }}</td>
           <td class="row">
             <button class="btn sm" :disabled="!game.selectedId" @click="game.act(equip, game.selectedId!, g.id)">Equip</button>

@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useGame } from '@/stores/game'
 import {
   activeLanes, assign, dismiss, duelistStats, expToNext, getClass, power, quarters, rankUp, squadCost,
-  unequip, useTome, MAX_LANES, MAX_SQUAD, RANK_UP, SUBCLASSES_ENABLED, RARITY_COLOR, type GearSlot,
+  unequip, useTome, getPassive, MAX_LANES, MAX_SQUAD, RANK_UP, SUBCLASSES_ENABLED, RARITY_COLOR, type GearSlot,
 } from '@/engine'
 import Portrait from './Portrait.vue'
 
@@ -64,8 +64,14 @@ const slots: GearSlot[] = ['weapon', 'armor', 'accessory']
           <p class="h">{{ sel.d.name }}</p>
           <div>{{ sel.cls.name }} (Rank {{ sel.cls.rank }}) · {{ sel.cls.row }} row</div>
           <div>Potential <b :class="'pot-' + sel.d.potential">{{ sel.d.potential }}</b> · COST {{ sel.cls.cost }}</div>
-          <div class="muted">Skill: {{ sel.cls.skill.name }}</div>
         </div>
+      </div>
+
+      <p class="h">KIT</p>
+      <div class="kit">
+        <div><span class="tag">PASSIVE</span> <b>{{ getPassive(sel.d.passive)?.name ?? '—' }}</b> <span class="muted">{{ getPassive(sel.d.passive)?.desc }}</span></div>
+        <div><span class="tag">BASIC</span> <b>{{ sel.cls.basic.name }}</b> <span class="muted">{{ Math.round(sel.cls.basic.power * 100) }}% ATK · +energy</span></div>
+        <div><span class="tag">ACTIVE</span> <b>{{ sel.cls.active.name }}</b> <span class="muted">casts at {{ sel.cls.energyMax }} energy</span></div>
       </div>
 
       <div class="lv">
@@ -94,7 +100,7 @@ const slots: GearSlot[] = ['weapon', 'armor', 'accessory']
         <div v-for="slot in slots" :key="slot" class="gslot">
           <span class="muted">{{ slot }}</span>
           <template v-if="sel.d.gear[slot] && s.gear[sel.d.gear[slot]!]">
-            <span :style="{ color: RARITY_COLOR[s.gear[sel.d.gear[slot]!]!.rarity] }">{{ s.gear[sel.d.gear[slot]!]!.name }}</span>
+            <span :style="{ color: RARITY_COLOR[s.gear[sel.d.gear[slot]!]!.rarity] }" :title="getPassive(s.gear[sel.d.gear[slot]!]!.passive)?.desc">{{ s.gear[sel.d.gear[slot]!]!.name }}<template v-if="s.gear[sel.d.gear[slot]!]!.passive"> · {{ getPassive(s.gear[sel.d.gear[slot]!]!.passive)?.name }}</template></span>
             <button class="btn sm" @click="game.act(unequip, sel.d.id, slot)">×</button>
           </template>
           <span v-else class="muted">— (Armory tab)</span>
@@ -138,4 +144,5 @@ const slots: GearSlot[] = ['weapon', 'armor', 'accessory']
 .gear { display: grid; gap: 4px; }
 .gslot { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; }
 .h { margin-bottom: 0; }
+.kit { display: grid; gap: 4px; background: #241c30; padding: 8px; border: 2px solid var(--line); }
 </style>

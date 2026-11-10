@@ -7,7 +7,8 @@ import {
   QUARTERS, RANK_UP, RARITIES, RARITY_MULT, SUBCLASSES_ENABLED, facilityUpgradeCost,
 } from './data/world'
 import { makeRng, pick, randInt, type Rng } from './rng'
-import { computeStats, duelistStats, expToNext } from './stats'
+import { PASSIVES, rollGearPassive, rollPassive } from './data/passives'
+import { computeStats, duelistStats, equippedGear, expToNext } from './stats'
 import { createBattle, simulate, stepBattle, type CombatantSpec } from './battle'
 
 export const SAVE_VERSION = 1
@@ -46,9 +47,10 @@ export function newGame(seed = Date.now() % 2147483647): GameState {
 
 const nid = (s: GameState, p: string) => `${p}${++s.idCounter}`
 
-function addDuelist(s: GameState, rng: Rng, classId: string, potential: Potential, name?: string): Duelist {
+function addDuelist(s: GameState, rng: Rng, classId: string, potential: Potential, name?: string, passive?: string): Duelist {
   const d: Duelist = {
-    id: nid(s, 'd'), name: name ?? pick(rng, NAMES), classId, level: 1, exp: 0, potential, gear: {},
+    id: nid(s, 'd'), name: name ?? pick(rng, NAMES), classId, level: 1, exp: 0, potential,
+    passive: passive ?? rollPassive(rng), gear: {},
   }
   s.duelists[d.id] = d
   return d
@@ -95,7 +97,11 @@ function addExp(s: GameState, d: Duelist, amount: number): boolean {
 function allySpecs(s: GameState, lane: LaneState): CombatantSpec[] {
   return lane.squad.map((id) => {
     const d = s.duelists[id]!
-    return { ref: d.id, name: d.name, classId: d.classId, level: d.level, stats: duelistStats(d, s.gear) }
+    return {
+      ref: d.id, name: d.name, classId: d.classId, level: d.level, passive: d.passive,
+      gearPassives: equippedGear(d, s.gear).map((g) => g.passive).filter((p): p is string => !!p),
+      stats: duelistStats(d, s.gear),
+    }
   })
 }
 
@@ -109,10 +115,14 @@ function waveSpecs(s: GameState, rng: Rng): CombatantSpec[] {
 }
 
 function duelSpecs(s: GameState, rng: Rng): CombatantSpec[] {
-  return outpost(s).duel.squad.map((e) => ({
-    name: e.name ?? pick(rng, NAMES), classId: e.classId, level: e.level,
-    stats: computeStats(e.classId, e.level, e.potential ?? 'C'),
-  }))
+  // Rival duelists roll their own passive each fight.
+  return outpost(s).duel.squad.map((e) => {
+    const passive = rollPassive(rng)
+    return {
+      name: e.name ?? pick(rng, NAMES), classId: e.classId, level: e.level, passive,
+      stats: computeStats(e.classId, e.level, e.potential ?? 'C', [], passive),
+    }
+  })
 }
 
 function startBattle(s: GameState, lane: LaneState, rng: Rng) {
@@ -214,8 +224,11 @@ export function tick(s: GameState, dt: number): void {
 
 // ---------- save normalization ----------
 
-/** Bring an older save in line with current rules: squads capped at TEAM_SIZE, sub-classes reverted to their base class while locked. */
+/** Bring an older save in line with current rules: squads capped at TEAM_SIZE, sub-classes reverted to their base class while locked, missing passives rolled. */
 export function normalize(s: GameState): void {
+  const rng = makeRng(s)
+  for (const d of Object.values(s.duelists)) if (!PASSIVES[d.passive]) d.passive = rollPassive(rng)
+  for (const c of s.candidates) if (!PASSIVES[c.passive]) c.passive = rollPassive(rng)
   if (!SUBCLASSES_ENABLED) {
     for (const d of Object.values(s.duelists)) {
       if (getClass(d.classId).rank === 1) continue
@@ -297,7 +310,10 @@ export function gatherCandidates(s: GameState): ActionResult {
     let gi = 0
     while ((r -= w[gi]!) > 0 && gi < 6) gi++
     const classId = pick(rng, RECRUITABLE)
-    return { id: nid(s, 'c'), name: pick(rng, NAMES), classId, potential: POTENTIALS[gi]!, price: HIRE_COST[getClass(classId).rank]! }
+    return {
+      id: nid(s, 'c'), name: pick(rng, NAMES), classId, potential: POTENTIALS[gi]!, passive: rollPassive(rng),
+      price: HIRE_COST[getClass(classId).rank]!,
+    }
   })
   return null
 }
@@ -308,7 +324,7 @@ export function hire(s: GameState, candidateId: string): ActionResult {
   if (s.gold < c.price) return 'Not enough gold'
   s.gold -= c.price
   s.candidates = s.candidates.filter((x) => x !== c)
-  const d = addDuelist(s, makeRng(s), c.classId, c.potential, c.name)
+  const d = addDuelist(s, makeRng(s), c.classId, c.potential, c.name, c.passive)
   log(s, `${d.name} (${getClass(d.classId).name}, ${d.potential}) joined.`, 'info')
   return null
 }
@@ -406,6 +422,7 @@ function rollGear(s: GameState, rng: Rng, rarityBonus: number): Gear {
     id: nid(s, 'g'), slot, rarity,
     name: `${rarity[0]!.toUpperCase()}${rarity.slice(1)} ${pick(rng, b.names)}`,
     hp: Math.round(b.hp * scale), atk: Math.round(b.atk * scale), def: Math.round(b.def * scale),
+    passive: rollGearPassive(rng, rarity),
   }
   s.gear[g.id] = g
   return g
@@ -441,7 +458,7 @@ export function unequip(s: GameState, duelistId: string, slot: GearSlot): Action
   return null
 }
 
-export function sellPrice(g: Gear) { return Math.round(40 * RARITY_MULT[g.rarity] * (1 + (g.hp + g.atk * 6 + g.def * 5) / 40)) }
+export function sellPrice(g: Gear) { return Math.round(40 * RARITY_MULT[g.rarity] * (1 + (g.hp + g.atk * 6 + g.def * 5) / 40) * (g.passive ? 1.5 : 1)) }
 
 export function sell(s: GameState, gearId: string): ActionResult {
   const g = s.gear[gearId]

@@ -2,16 +2,19 @@ import type { ClassDef } from '../types'
 
 // Base classes (rank I) + one rank II branch each.
 // COST per rank follows the reference game: I=1, II=2, III=3, IV=4, V=6.
+// Kit: basic (attack timer) + active (energy full); passive is rolled per duelist.
+// energyMax sets active cadence per class: supports cast more often than tanks.
 // Add more classes here — everything else is data-driven.
 
 const melee = { range: 24, speed: 34 }
 const ranged = { range: 130, speed: 26 }
 
 function mob(
-  id: string, name: string, base: ClassDef['base'], growth: ClassDef['growth'], skill: ClassDef['skill'],
+  id: string, name: string, base: ClassDef['base'], growth: ClassDef['growth'], active: ClassDef['active'],
   row: ClassDef['row'] = 'front', isRanged = false,
 ): ClassDef {
-  return { id, name, rank: 1, cost: 0, row, ranged: isRanged, base, growth, skill, upgradesTo: [], sprite: id === 'slime' ? 'slime' : 'human', palette: id }
+  const basic = { name: isRanged ? 'Shot' : 'Strike', power: 1 }
+  return { id, name, rank: 1, cost: 0, row, ranged: isRanged, base, growth, basic, active, energyMax: 100, upgradesTo: [], sprite: id === 'slime' ? 'slime' : 'human', palette: id }
 }
 
 export const CLASSES: Record<string, ClassDef> = {
@@ -19,28 +22,36 @@ export const CLASSES: Record<string, ClassDef> = {
     id: 'warrior', name: 'Warrior', rank: 1, cost: 1, row: 'front', ranged: false,
     base: { hp: 120, atk: 12, def: 6, interval: 1.1, crit: 0.05, ...melee },
     growth: { hp: 14, atk: 1.6, def: 0.9 },
-    skill: { id: 'cleave', name: 'Cleave', kind: 'cleave', power: 2.0, area: 28 },
+    basic: { name: 'Slash', power: 1 },
+    active: { id: 'cleave', name: 'Cleave', kind: 'cleave', power: 2.0, area: 28 },
+    energyMax: 120,
     upgradesTo: ['knight'], sprite: 'human', palette: 'warrior',
   },
   mage: {
     id: 'mage', name: 'Mage', rank: 1, cost: 1, row: 'back', ranged: true,
     base: { hp: 70, atk: 15, def: 2, interval: 1.6, crit: 0.05, ...ranged },
     growth: { hp: 7, atk: 2.2, def: 0.3 },
-    skill: { id: 'fireball', name: 'Fireball', kind: 'fireball', power: 1.6, area: 42 },
+    basic: { name: 'Arcane Bolt', power: 1 },
+    active: { id: 'fireball', name: 'Fireball', kind: 'fireball', power: 1.6, area: 42 },
+    energyMax: 100,
     upgradesTo: ['wizard'], sprite: 'human', palette: 'mage',
   },
   priest: {
     id: 'priest', name: 'Priest', rank: 1, cost: 1, row: 'back', ranged: true,
     base: { hp: 80, atk: 8, def: 3, interval: 1.5, crit: 0.03, ...ranged, range: 110 },
     growth: { hp: 8, atk: 1.2, def: 0.4 },
-    skill: { id: 'heal', name: 'Heal', kind: 'heal', power: 2.6 },
+    basic: { name: 'Rebuke', power: 1 },
+    active: { id: 'heal', name: 'Heal', kind: 'heal', power: 2.6 },
+    energyMax: 80,
     upgradesTo: ['bishop'], sprite: 'human', palette: 'priest',
   },
   archer: {
     id: 'archer', name: 'Archer', rank: 1, cost: 1, row: 'back', ranged: true,
     base: { hp: 85, atk: 13, def: 3, interval: 0.9, crit: 0.12, ...ranged, range: 150 },
     growth: { hp: 8, atk: 1.8, def: 0.4 },
-    skill: { id: 'volley', name: 'Volley', kind: 'volley', power: 0.9, hits: 3 },
+    basic: { name: 'Quick Shot', power: 1 },
+    active: { id: 'volley', name: 'Volley', kind: 'volley', power: 0.9, hits: 3 },
+    energyMax: 90,
     upgradesTo: ['ranger'], sprite: 'human', palette: 'archer',
   },
 
@@ -49,28 +60,36 @@ export const CLASSES: Record<string, ClassDef> = {
     id: 'knight', name: 'Knight', rank: 2, cost: 2, row: 'front', ranged: false,
     base: { hp: 220, atk: 16, def: 12, interval: 1.2, crit: 0.05, ...melee },
     growth: { hp: 22, atk: 2, def: 1.5 },
-    skill: { id: 'guard', name: 'Shield Wall', kind: 'guard', power: 0.5 },
+    basic: { name: 'Lance Thrust', power: 1 },
+    active: { id: 'guard', name: 'Shield Wall', kind: 'guard', power: 0.5 },
+    energyMax: 130,
     upgradesTo: [], sprite: 'human', palette: 'knight',
   },
   wizard: {
     id: 'wizard', name: 'Wizard', rank: 2, cost: 2, row: 'back', ranged: true,
     base: { hp: 100, atk: 26, def: 4, interval: 1.5, crit: 0.07, ...ranged },
     growth: { hp: 10, atk: 3.2, def: 0.5 },
-    skill: { id: 'meteor', name: 'Meteor', kind: 'fireball', power: 2.4, area: 60 },
+    basic: { name: 'Mana Lance', power: 1 },
+    active: { id: 'meteor', name: 'Meteor', kind: 'fireball', power: 2.4, area: 60 },
+    energyMax: 100,
     upgradesTo: [], sprite: 'human', palette: 'wizard',
   },
   bishop: {
     id: 'bishop', name: 'Bishop', rank: 2, cost: 2, row: 'back', ranged: true,
     base: { hp: 120, atk: 14, def: 5, interval: 1.4, crit: 0.03, ...ranged, range: 110 },
     growth: { hp: 12, atk: 1.8, def: 0.6 },
-    skill: { id: 'smite', name: 'Holy Smite', kind: 'smite', power: 2.2, area: 40 },
+    basic: { name: 'Judgement', power: 1 },
+    active: { id: 'smite', name: 'Holy Smite', kind: 'smite', power: 2.2, area: 40 },
+    energyMax: 80,
     upgradesTo: [], sprite: 'human', palette: 'bishop',
   },
   ranger: {
     id: 'ranger', name: 'Ranger', rank: 2, cost: 2, row: 'back', ranged: true,
     base: { hp: 120, atk: 21, def: 5, interval: 0.8, crit: 0.18, ...ranged, range: 160 },
     growth: { hp: 11, atk: 2.7, def: 0.6 },
-    skill: { id: 'rain', name: 'Arrow Rain', kind: 'volley', power: 1.0, hits: 5 },
+    basic: { name: 'Piercing Shot', power: 1 },
+    active: { id: 'rain', name: 'Arrow Rain', kind: 'volley', power: 1.0, hits: 5 },
+    energyMax: 90,
     upgradesTo: [], sprite: 'human', palette: 'ranger',
   },
 

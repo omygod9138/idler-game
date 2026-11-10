@@ -1,5 +1,6 @@
 import type { BattleState, Combatant, Side, Stats } from './types'
 import { getClass } from './data/classes'
+import { mergeMods } from './data/passives'
 import type { Rng } from './rng'
 
 // 1-D lane auto-battle. Allies on the left facing right, enemies on the right.
@@ -16,6 +17,10 @@ export interface CombatantSpec {
   classId: string
   level: number
   stats: Stats
+  /** passive id (kit slot 1); monsters have none */
+  passive?: string
+  /** passive ids from equipped gear */
+  gearPassives?: string[]
 }
 
 export function createBattle(allies: CombatantSpec[], enemies: CombatantSpec[], rng: Rng): BattleState {
@@ -29,7 +34,9 @@ function place(b: BattleState, specs: CombatantSpec[], side: Side, rng: Rng) {
   let front = 0
   let back = 0
   for (const s of specs) {
-    const row = getClass(s.classId).row
+    const cls = getClass(s.classId)
+    const mods = mergeMods([s.passive, ...(s.gearPassives ?? [])])
+    const row = cls.row
     const slot = row === 'front' ? front++ : back++
     // start close to the centre so melee meets in ~1s instead of ~3s
     const offset = (row === 'front' ? 160 : 108) - slot * 22
@@ -37,7 +44,9 @@ function place(b: BattleState, specs: CombatantSpec[], side: Side, rng: Rng) {
     const u: Combatant = {
       uid: ++b.uidCounter, side, ref: s.ref, name: s.name, classId: s.classId, level: s.level,
       stats: s.stats, hp: s.stats.hp, maxHp: s.stats.hp, x,
-      energy: 0, atkTimer: s.stats.interval * (0.3 + rng() * 0.7), alive: true, guard: 1, guardT: 0,
+      energy: Math.round(cls.energyMax * mods.startEnergy), energyMax: cls.energyMax,
+      atkTimer: s.stats.interval * (0.3 + rng() * 0.7), alive: true, guard: 1, guardT: 0,
+      passive: s.passive, mods, onceUsed: false,
     }
     b.units.push(u)
   }
@@ -62,21 +71,54 @@ function emit(b: BattleState, e: BattleState['events'][number]) {
   if (b.events.length > MAX_EVENTS) b.events.splice(0, b.events.length - MAX_EVENTS)
 }
 
-function dealDamage(b: BattleState, src: Combatant, dst: Combatant, mult: number, rng: Rng) {
-  if (!dst.alive) return
-  const crit = rng() < src.stats.crit
-  const variance = 0.9 + rng() * 0.2
-  const raw = src.stats.atk * mult * variance * (crit ? 1.75 : 1)
-  const reduced = raw * (60 / (60 + dst.stats.def)) * dst.guard
-  const amount = Math.max(1, Math.round(reduced))
+function gainEnergy(u: Combatant, amount: number) {
+  const mult = 1 + u.mods.energyGain
+  u.energy = Math.min(u.energyMax, u.energy + amount * mult)
+}
+
+function proc(b: BattleState, u: Combatant, name: string) {
+  emit(b, { t: 'passive', src: u.uid, name })
+}
+
+/** Apply raw damage to a unit: emits damage/death, triggers Undying / Second Wind / Reaper. */
+function hurt(b: BattleState, dst: Combatant, amount: number, crit: boolean, src?: Combatant) {
+  const p = dst.mods
   dst.hp -= amount
-  dst.energy = Math.min(100, dst.energy + ENERGY_PER_HIT)
   emit(b, { t: 'damage', dst: dst.uid, amount, crit })
+  if (dst.hp <= 0 && p.undying && !dst.onceUsed) {
+    dst.onceUsed = true
+    dst.hp = 1
+    proc(b, dst, p.undying)
+  }
   if (dst.hp <= 0) {
     dst.hp = 0
     dst.alive = false
     emit(b, { t: 'death', dst: dst.uid })
+    if (src?.alive && src.mods.killEnergy) gainEnergy(src, src.energyMax * src.mods.killEnergy)
+    return
   }
+  if (p.secondWind && !dst.onceUsed && dst.hp < dst.maxHp * 0.3) {
+    dst.onceUsed = true
+    proc(b, dst, p.secondWindName!)
+    heal(b, dst, dst.maxHp * p.secondWind)
+  }
+}
+
+function dealDamage(b: BattleState, src: Combatant, dst: Combatant, mult: number, rng: Rng, basic = false) {
+  if (!dst.alive) return
+  const crit = rng() < src.stats.crit
+  const variance = 0.9 + rng() * 0.2
+  const raw = src.stats.atk * mult * variance * (crit ? 1.75 : 1)
+  const dr = 1 - dst.mods.damageReduction
+  const execute = dst.hp < dst.maxHp * 0.3 ? 1 + src.mods.executeBonus : 1
+  const reduced = raw * (60 / (60 + dst.stats.def)) * dst.guard * dr * execute
+  const amount = Math.max(1, Math.round(reduced))
+  hurt(b, dst, amount, crit, src)
+  if (dst.alive) gainEnergy(dst, ENERGY_PER_HIT)
+  const lifesteal = basic ? src.mods.lifesteal : 0
+  if (lifesteal && src.alive) heal(b, src, amount * lifesteal)
+  const thorns = dst.mods.thorns
+  if (thorns && src.alive) hurt(b, src, Math.max(1, Math.round(amount * thorns)), false)
 }
 
 function heal(b: BattleState, dst: Combatant, amount: number) {
@@ -87,8 +129,10 @@ function heal(b: BattleState, dst: Combatant, amount: number) {
   emit(b, { t: 'heal', dst: dst.uid, amount: a })
 }
 
-function castSkill(b: BattleState, u: Combatant, target: Combatant, rng: Rng) {
-  const sk = getClass(u.classId).skill
+/** Kit slot 3: the class active, fired as soon as energy is full. */
+function castActive(b: BattleState, u: Combatant, target: Combatant, rng: Rng) {
+  const base = getClass(u.classId).active
+  const sk = { ...base, power: base.power * (1 + u.mods.activePower) }
   emit(b, { t: 'skill', src: u.uid, name: sk.name, x: target.x, area: sk.area, kind: sk.kind })
   const enemies = alive(b, foe(u.side))
   const friends = alive(b, u.side)
@@ -126,26 +170,37 @@ export function stepBattle(b: BattleState, dt: number, rng: Rng): void {
   for (const u of b.units) {
     if (!u.alive) continue
     if (u.guardT > 0 && (u.guardT -= dt) <= 0) u.guard = 1
+    const regen = u.mods.regen
+    if (regen) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * regen * dt)
     const target = nearest(b, u)
     if (!target) break
+    const cls = getClass(u.classId)
     const dist = Math.abs(target.x - u.x)
-    const dir = target.x > u.x ? 1 : -1
-    if (dist > u.stats.range) {
+    // epsilon: float drift can leave a unit 1e-13 px short of range forever
+    const inRange = dist <= u.stats.range + 1e-6
+    // Active: fires the moment energy is full (support actives don't need a target in range).
+    if (u.energy >= u.energyMax && (inRange || cls.active.kind === 'heal' || cls.active.kind === 'guard')) {
+      u.energy = 0
+      castActive(b, u, target, rng)
+      if (!u.alive) continue
+    }
+    if (!inRange) {
+      const dir = target.x > u.x ? 1 : -1
       u.x += dir * Math.min(u.stats.speed * dt, dist - u.stats.range)
       continue
     }
+    if (!target.alive) continue
+    // Basic attack on the attack timer; builds energy.
     u.atkTimer -= dt
     if (u.atkTimer > 0) continue
     u.atkTimer = u.stats.interval
-    if (u.energy >= 100) {
-      u.energy = 0
-      castSkill(b, u, target, rng)
-    } else {
-      const cls = getClass(u.classId)
+    emit(b, { t: 'attack', src: u.uid, dst: target.uid, ranged: cls.ranged })
+    dealDamage(b, u, target, cls.basic.power, rng, true)
+    if (u.alive) gainEnergy(u, ENERGY_PER_ATTACK)
+    const extra = u.mods.extraBasic
+    if (extra && u.alive && target.alive && rng() < extra) {
       emit(b, { t: 'attack', src: u.uid, dst: target.uid, ranged: cls.ranged })
-      // Priests chip-damage with basic attacks; their value is the skill.
-      dealDamage(b, u, target, 1, rng)
-      u.energy = Math.min(100, u.energy + ENERGY_PER_ATTACK)
+      dealDamage(b, u, target, cls.basic.power, rng, true)
     }
   }
   const a = alive(b, 'ally').length

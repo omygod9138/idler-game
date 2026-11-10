@@ -136,6 +136,11 @@ export class Renderer {
           fx.bursts.push({ x: e.kind === 'heal' || e.kind === 'guard' ? (s?.x ?? e.x) : e.x, r: e.area ?? 14, t: 0, ttl: 0.45, color, label: e.name })
           break
         }
+        case 'passive': {
+          const u = byId.get(e.src)
+          if (u) fx.floaters.push({ x: u.x, y: this.topY(u) - 14, text: e.name, color: '#c9a6ff', t: 0, ttl: 1.1 })
+          break
+        }
         case 'death': {
           const d = byId.get(e.dst)
           if (d) { this.play(fx, d, 'death'); this.unitFx(fx, d).deathT = 0.0001 }
@@ -313,7 +318,7 @@ export class Renderer {
     if (u.guard < 1) { c.fillStyle = '#4fa3ff'; c.fillRect(x, y - 2, 14, 1) }
     if (u.side === 'ally') {
       c.fillStyle = '#ffd54a'
-      c.fillRect(x, y + 3, Math.round((14 * u.energy) / 100), 1)
+      c.fillRect(x, y + 3, Math.round((14 * u.energy) / u.energyMax), 1)
     }
   }
 

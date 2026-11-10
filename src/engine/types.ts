@@ -22,6 +22,68 @@ export interface Stats {
 
 export type SkillKind = 'cleave' | 'fireball' | 'heal' | 'volley' | 'guard' | 'smite'
 
+/**
+ * A duelist's kit has three slots:
+ *  1. passive — rolled at random per duelist (see data/passives.ts)
+ *  2. basic   — class basic attack, fired on the attack timer; builds energy
+ *  3. active  — class skill, fired the moment energy reaches 100
+ */
+export interface BasicDef {
+  name: string
+  /** multiplier on atk */
+  power: number
+}
+
+export interface PassiveDef {
+  id: string
+  name: string
+  desc: string
+  /** fractional stat bonuses applied in computeStats (haste = attack speed) */
+  stats?: Partial<Record<'hp' | 'atk' | 'def' | 'crit' | 'haste', number>>
+  /** extra fraction of energy gained */
+  energyGain?: number
+  /** fraction of the energy bar filled at battle start */
+  startEnergy?: number
+  /** fraction of the energy bar refilled on a killing blow */
+  killEnergy?: number
+  /** chance for a basic attack to strike again */
+  extraBasic?: number
+  /** fraction of max HP regenerated per second */
+  regen?: number
+  /** fraction of incoming damage ignored */
+  damageReduction?: number
+  /** extra fraction of active power */
+  activePower?: number
+  /** once per battle, a lethal hit leaves the duelist at 1 HP */
+  undying?: boolean
+  /** fraction of basic-attack damage healed */
+  lifesteal?: number
+  /** fraction of damage taken reflected to the attacker */
+  thorns?: number
+  /** once per battle below 30% HP: heal this fraction of max HP */
+  secondWind?: number
+  /** extra damage fraction against targets below 30% HP */
+  executeBonus?: number
+}
+
+/** All passives on a combatant (duelist passive + gear passives) folded into one bag of modifiers. */
+export interface PassiveMods {
+  energyGain: number
+  startEnergy: number
+  killEnergy: number
+  extraBasic: number
+  regen: number
+  damageReduction: number
+  activePower: number
+  lifesteal: number
+  thorns: number
+  executeBonus: number
+  secondWind: number
+  /** name shown when the once-per-battle passive procs */
+  undying?: string
+  secondWindName?: string
+}
+
 export interface SkillDef {
   id: string
   name: string
@@ -43,7 +105,11 @@ export interface ClassDef {
   base: Stats
   /** additive growth per level for hp/atk/def */
   growth: { hp: number; atk: number; def: number }
-  skill: SkillDef
+  basic: BasicDef
+  /** fired automatically when energy is full */
+  active: SkillDef
+  /** energy needed to cast the active: supports fill faster than tanks */
+  energyMax: number
   /** class ids this can rank up into */
   upgradesTo: string[]
   /** sprite key + palette key used by the renderer */
@@ -59,6 +125,8 @@ export interface Gear {
   hp: number
   atk: number
   def: number
+  /** gear passive id: minor on rare/epic, major on legendary/mythic */
+  passive?: string
 }
 
 export interface Duelist {
@@ -68,6 +136,8 @@ export interface Duelist {
   level: number
   exp: number
   potential: Potential
+  /** passive id (kit slot 1), rolled once */
+  passive: string
   gear: Partial<Record<GearSlot, string>>
 }
 
@@ -76,6 +146,7 @@ export interface Candidate {
   name: string
   classId: string
   potential: Potential
+  passive: string
   price: number
 }
 
@@ -161,12 +232,17 @@ export interface Combatant {
   maxHp: number
   x: number
   energy: number
+  energyMax: number
   atkTimer: number
   alive: boolean
   /** guard buff: damage taken multiplier & remaining seconds */
   guard: number
   guardT: number
   level: number
+  passive?: string
+  mods: PassiveMods
+  /** once-per-battle passive (Second Wind / Undying) already used */
+  onceUsed: boolean
 }
 
 export type BattleEvent =
@@ -174,6 +250,7 @@ export type BattleEvent =
   | { t: 'damage'; dst: number; amount: number; crit: boolean }
   | { t: 'heal'; dst: number; amount: number }
   | { t: 'skill'; src: number; name: string; x: number; area?: number; kind: SkillKind }
+  | { t: 'passive'; src: number; name: string }
   | { t: 'death'; dst: number }
 
 export interface BattleState {

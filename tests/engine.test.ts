@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyOffline, assign, challengeDuel, computeStats, createBattle, gatherCandidates, hire, load, newGame,
   OUTPOSTS, save, simulate, tick, upgradeFacility, forge, equip, rankUp, TEAM_SIZE, getClass, normalize,
+  PASSIVES, stepBattle, GEAR_PASSIVES_MINOR, GEAR_PASSIVES_MAJOR, duelistStats,
 } from '../src/engine'
 import { makeRng } from '../src/engine/rng'
 
@@ -120,5 +121,133 @@ describe('save / offline', () => {
 
   it('ignores short absences', () => {
     expect(applyOffline(newGame(1), 10)).toBeNull()
+  })
+})
+
+describe('3-slot kit', () => {
+  const mk = (c: string, l: number, passive?: string) => ({ name: c, classId: c, level: l, passive, stats: computeStats(c, l, 'C', [], passive) })
+
+  it('every class has a basic attack and an active', () => {
+    for (const id of ['warrior', 'mage', 'priest', 'archer', 'slime', 'drake']) {
+      const c = getClass(id)
+      expect(c.basic.name).toBeTruthy()
+      expect(c.basic.power).toBeGreaterThan(0)
+      expect(c.active.name).toBeTruthy()
+    }
+  })
+
+  it('duelists and candidates roll a passive; hiring keeps it', () => {
+    const s = newGame(11)
+    for (const d of Object.values(s.duelists)) expect(PASSIVES[d.passive]).toBeDefined()
+    s.gold = 1e6
+    gatherCandidates(s)
+    const c = s.candidates[0]!
+    expect(PASSIVES[c.passive]).toBeDefined()
+    hire(s, c.id)
+    const d = Object.values(s.duelists).find((x) => x.name === c.name && x.classId === c.classId)!
+    expect(d.passive).toBe(c.passive)
+  })
+
+  it('normalize rolls passives for old saves', () => {
+    const s = newGame(12)
+    const d = Object.values(s.duelists)[0]!
+    delete (d as Partial<typeof d>).passive
+    normalize(s)
+    expect(PASSIVES[d.passive]).toBeDefined()
+  })
+
+  it('stat passives change computed stats', () => {
+    const base = computeStats('warrior', 5)
+    expect(computeStats('warrior', 5, 'C', [], 'stout').hp).toBeGreaterThan(base.hp)
+    expect(computeStats('warrior', 5, 'C', [], 'brawler').atk).toBeGreaterThan(base.atk)
+    expect(computeStats('warrior', 5, 'C', [], 'nimble').interval).toBeLessThan(base.interval)
+    expect(computeStats('warrior', 5, 'C', [], 'keen').crit).toBeCloseTo(base.crit + 0.1)
+  })
+
+  it('active fires the moment energy is full, without waiting for the attack timer', () => {
+    const rng = makeRng({ seed: 3 })
+    const b = createBattle([mk('priest', 5, 'eager')], [mk('troll', 5)], rng)
+    const priest = b.units[0]!
+    priest.energy = priest.energyMax
+    priest.atkTimer = 99 // basic attack nowhere near ready
+    stepBattle(b, 0.05, rng)
+    expect(b.events.some((e) => e.t === 'skill' && e.src === priest.uid)).toBe(true)
+    expect(priest.energy).toBe(0)
+  })
+
+  it('Eager starts with energy; Leech heals on basics; Spiked reflects; Second Wind triggers once', () => {
+    const rng = makeRng({ seed: 5 })
+    const eager = createBattle([mk('warrior', 5, 'eager')], [mk('slime', 1)], rng)
+    expect(eager.units[0]!.energy).toBe(getClass('warrior').energyMax / 2)
+    const primed = createBattle([mk('warrior', 5, 'primed')], [mk('slime', 1)], rng)
+    expect(primed.units[0]!.energy).toBe(getClass('warrior').energyMax)
+
+    const leech = createBattle([mk('warrior', 10, 'leech')], [mk('troll', 10)], rng)
+    simulate(leech, rng)
+    expect(leech.events.some((e) => e.t === 'heal' && e.dst === leech.units[0]!.uid)).toBe(true)
+
+    const spiked = createBattle([mk('warrior', 10, 'spiked')], [mk('troll', 10)], rng)
+    const [knight, troll] = [spiked.units[0]!, spiked.units[1]!]
+    knight.atkTimer = 1e9 // never swings: any damage the troll takes is reflected
+    knight.stats = { ...knight.stats, interval: 1e9 }
+    for (let i = 0; i < 100 && knight.energy < 90; i++) stepBattle(spiked, 0.05, rng)
+    expect(spiked.events.some((e) => e.t === 'damage' && e.dst === troll.uid)).toBe(true)
+
+    const wind = createBattle([mk('warrior', 3, 'secondWind')], [mk('troll', 12)], rng)
+    simulate(wind, rng)
+    expect(wind.events.filter((e) => e.t === 'passive').length).toBe(1)
+  })
+
+  it('supports fill their energy bar faster than tanks', () => {
+    expect(getClass('priest').energyMax).toBeLessThan(getClass('warrior').energyMax)
+  })
+
+  it('Undying survives one lethal hit; Stalwart takes less damage; Reaper refills energy on kills', () => {
+    const rng = makeRng({ seed: 9 })
+    const und = createBattle([mk('mage', 1, 'undying')], [mk('troll', 15)], rng)
+    simulate(und, rng)
+    expect(und.events.filter((e) => e.t === 'passive' && e.src === und.units[0]!.uid)).toHaveLength(1)
+
+    const dmgTaken = (passive?: string) => {
+      const r = makeRng({ seed: 21 })
+      const b = createBattle([mk('warrior', 5, passive)], [mk('orc', 5)], r)
+      for (let i = 0; i < 60; i++) stepBattle(b, 0.05, r)
+      return b.units[0]!.maxHp - b.units[0]!.hp
+    }
+    expect(dmgTaken('stalwart')).toBeLessThan(dmgTaken())
+
+    const reap = createBattle([mk('warrior', 20, 'reaper')], [mk('slime', 1)], rng)
+    const w = reap.units[0]!
+    simulate(reap, rng)
+    expect(w.energy).toBeGreaterThanOrEqual(w.energyMax * 0.35)
+  })
+})
+
+describe('gear passives', () => {
+  it('common gear has none; rare/epic roll minor; legendary/mythic roll major', () => {
+    const s = newGame(31)
+    s.gold = 1e9; s.materials.ore = 1e6; s.facilities.blacksmith = 10
+    for (let i = 0; i < 300; i++) forge(s)
+    const gear = Object.values(s.gear)
+    for (const g of gear) {
+      if (g.rarity === 'common') expect(g.passive).toBeUndefined()
+      else if (g.rarity === 'rare' || g.rarity === 'epic') expect(GEAR_PASSIVES_MINOR[g.passive!]).toBeDefined()
+      else expect(GEAR_PASSIVES_MAJOR[g.passive!]).toBeDefined()
+    }
+    expect(gear.some((g) => g.passive)).toBe(true)
+  })
+
+  it('stack with the duelist passive in stats and battle', () => {
+    const s = newGame(32)
+    const d = s.duelists[s.lanes[0]!.squad[0]!]!
+    d.passive = 'brawler'
+    const before = duelistStats(d, s.gear).atk
+    s.gear.x = { id: 'x', name: 'Test Blade', slot: 'weapon', rarity: 'rare', hp: 0, atk: 0, def: 0, passive: 'g_honed' }
+    s.gear.y = { id: 'y', name: 'Test Charm', slot: 'accessory', rarity: 'legendary', hp: 0, atk: 0, def: 0, passive: 'g_phoenix' }
+    equip(s, d.id, 'x'); equip(s, d.id, 'y')
+    expect(duelistStats(d, s.gear).atk).toBeGreaterThan(before)
+    for (let i = 0; i < 50 && !s.lanes[0]!.battle; i++) tick(s, 0.1)
+    const u = s.lanes[0]!.battle!.units.find((x) => x.ref === d.id)!
+    expect(u.mods.undying).toBe('Phoenix Plume')
   })
 })
