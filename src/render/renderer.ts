@@ -22,7 +22,10 @@ interface Slash { x: number; y: number; dir: 1 | -1; r: number; t: number; ttl: 
 interface Spark { x: number; y: number; dir: 1 | -1; t: number; ttl: number; big: boolean; rays: { a: number; len: number }[] }
 /** Work held back until an attack clip reaches its hit frame. */
 interface Later { t: number; run: () => void }
-interface UnitFx { anim: Anim; clip?: Clip; t: number; fps: number; hurt: number; flashCd: number; lastX: number; deathT: number }
+interface UnitFx { anim: Anim; clip?: Clip; t: number; fps: number; hurt: number; flashCd: number; lastX: number; deathT: number; moveT: number }
+
+/** Keep walking this long after the last position change: the sim moves units at 10 Hz, the renderer draws at ~60 Hz. */
+const WALK_HOLD = 0.2
 
 interface LaneFx {
   battle: BattleState | null
@@ -175,7 +178,7 @@ export class Renderer {
 
   private unitFx(fx: LaneFx, u: Combatant): UnitFx {
     let f = fx.fx.get(u.uid)
-    if (!f) { f = { anim: 'idle', t: Math.random(), fps: FPS, hurt: 0, flashCd: 0, lastX: u.x, deathT: 0 }; fx.fx.set(u.uid, f) }
+    if (!f) { f = { anim: 'idle', t: Math.random(), fps: FPS, hurt: 0, flashCd: 0, lastX: u.x, deathT: 0, moveT: 0 }; fx.fx.set(u.uid, f) }
     return f
   }
 
@@ -284,9 +287,10 @@ export class Renderer {
       } else if (f.anim === 'attack' || f.anim === 'death') {
         if (!f.clip || f.t >= clipTicks(f.clip) / f.fps) { f.anim = 'idle'; f.clip = undefined; f.fps = FPS }
       }
+      // Positions only change on sim ticks, so most drawn frames see no movement: hold the walk briefly.
+      f.moveT = Math.abs(u.x - f.lastX) > 0.01 ? WALK_HOLD : Math.max(0, f.moveT - dt)
       if (shown && f.anim !== 'attack' && f.anim !== 'death') {
-        const moving = Math.abs(u.x - f.lastX) > 0.01
-        const want: Anim = moving && !b.over && u.alive ? 'walk' : 'idle'
+        const want: Anim = f.moveT > 0 && !b.over && u.alive ? 'walk' : 'idle'
         if (f.anim !== want) { f.anim = want; f.clip = a?.anims[want] }
       }
       f.lastX = u.x
