@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyOffline, assign, challengeDuel, computeStats, createBattle, gatherCandidates, hire, load, newGame,
   OUTPOSTS, save, simulate, tick, upgradeFacility, forge, equip, rankUp, TEAM_SIZE, getClass, normalize,
+  PASSIVES, stepBattle,
 } from '../src/engine'
 import { makeRng } from '../src/engine/rng'
 
@@ -120,5 +121,78 @@ describe('save / offline', () => {
 
   it('ignores short absences', () => {
     expect(applyOffline(newGame(1), 10)).toBeNull()
+  })
+})
+
+describe('3-slot kit', () => {
+  const mk = (c: string, l: number, passive?: string) => ({ name: c, classId: c, level: l, passive, stats: computeStats(c, l, 'C', [], passive) })
+
+  it('every class has a basic attack and an active', () => {
+    for (const id of ['warrior', 'mage', 'priest', 'archer', 'slime', 'drake']) {
+      const c = getClass(id)
+      expect(c.basic.name).toBeTruthy()
+      expect(c.basic.power).toBeGreaterThan(0)
+      expect(c.active.name).toBeTruthy()
+    }
+  })
+
+  it('duelists and candidates roll a passive; hiring keeps it', () => {
+    const s = newGame(11)
+    for (const d of Object.values(s.duelists)) expect(PASSIVES[d.passive]).toBeDefined()
+    s.gold = 1e6
+    gatherCandidates(s)
+    const c = s.candidates[0]!
+    expect(PASSIVES[c.passive]).toBeDefined()
+    hire(s, c.id)
+    const d = Object.values(s.duelists).find((x) => x.name === c.name && x.classId === c.classId)!
+    expect(d.passive).toBe(c.passive)
+  })
+
+  it('normalize rolls passives for old saves', () => {
+    const s = newGame(12)
+    const d = Object.values(s.duelists)[0]!
+    delete (d as Partial<typeof d>).passive
+    normalize(s)
+    expect(PASSIVES[d.passive]).toBeDefined()
+  })
+
+  it('stat passives change computed stats', () => {
+    const base = computeStats('warrior', 5)
+    expect(computeStats('warrior', 5, 'C', [], 'stout').hp).toBeGreaterThan(base.hp)
+    expect(computeStats('warrior', 5, 'C', [], 'brawler').atk).toBeGreaterThan(base.atk)
+    expect(computeStats('warrior', 5, 'C', [], 'nimble').interval).toBeLessThan(base.interval)
+    expect(computeStats('warrior', 5, 'C', [], 'keen').crit).toBeCloseTo(base.crit + 0.1)
+  })
+
+  it('active fires the moment energy is full, without waiting for the attack timer', () => {
+    const rng = makeRng({ seed: 3 })
+    const b = createBattle([mk('priest', 5, 'eager')], [mk('troll', 5)], rng)
+    const priest = b.units[0]!
+    priest.energy = 100
+    priest.atkTimer = 99 // basic attack nowhere near ready
+    stepBattle(b, 0.05, rng)
+    expect(b.events.some((e) => e.t === 'skill' && e.src === priest.uid)).toBe(true)
+    expect(priest.energy).toBe(0)
+  })
+
+  it('Eager starts with energy; Leech heals on basics; Spiked reflects; Second Wind triggers once', () => {
+    const rng = makeRng({ seed: 5 })
+    const eager = createBattle([mk('warrior', 5, 'eager')], [mk('slime', 1)], rng)
+    expect(eager.units[0]!.energy).toBe(50)
+
+    const leech = createBattle([mk('warrior', 10, 'leech')], [mk('troll', 10)], rng)
+    simulate(leech, rng)
+    expect(leech.events.some((e) => e.t === 'heal' && e.dst === leech.units[0]!.uid)).toBe(true)
+
+    const spiked = createBattle([mk('warrior', 10, 'spiked')], [mk('troll', 10)], rng)
+    const [knight, troll] = [spiked.units[0]!, spiked.units[1]!]
+    knight.atkTimer = 1e9 // never swings: any damage the troll takes is reflected
+    knight.stats = { ...knight.stats, interval: 1e9 }
+    for (let i = 0; i < 100 && knight.energy < 90; i++) stepBattle(spiked, 0.05, rng)
+    expect(spiked.events.some((e) => e.t === 'damage' && e.dst === troll.uid)).toBe(true)
+
+    const wind = createBattle([mk('warrior', 3, 'secondWind')], [mk('troll', 12)], rng)
+    simulate(wind, rng)
+    expect(wind.events.filter((e) => e.t === 'passive').length).toBe(1)
   })
 })

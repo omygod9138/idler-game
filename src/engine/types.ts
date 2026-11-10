@@ -22,6 +22,35 @@ export interface Stats {
 
 export type SkillKind = 'cleave' | 'fireball' | 'heal' | 'volley' | 'guard' | 'smite'
 
+/**
+ * A duelist's kit has three slots:
+ *  1. passive — rolled at random per duelist (see data/passives.ts)
+ *  2. basic   — class basic attack, fired on the attack timer; builds energy
+ *  3. active  — class skill, fired the moment energy reaches 100
+ */
+export interface BasicDef {
+  name: string
+  /** multiplier on atk */
+  power: number
+}
+
+export interface PassiveDef {
+  id: string
+  name: string
+  desc: string
+  /** fractional stat bonuses applied in computeStats (haste = attack speed) */
+  stats?: Partial<Record<'hp' | 'atk' | 'def' | 'crit' | 'haste', number>>
+  /** extra fraction of energy gained */
+  energyGain?: number
+  startEnergy?: number
+  /** fraction of basic-attack damage healed */
+  lifesteal?: number
+  /** fraction of damage taken reflected to the attacker */
+  thorns?: number
+  /** once per battle below 30% HP: heal this fraction of max HP */
+  secondWind?: number
+}
+
 export interface SkillDef {
   id: string
   name: string
@@ -43,7 +72,9 @@ export interface ClassDef {
   base: Stats
   /** additive growth per level for hp/atk/def */
   growth: { hp: number; atk: number; def: number }
-  skill: SkillDef
+  basic: BasicDef
+  /** fired automatically when energy is full */
+  active: SkillDef
   /** class ids this can rank up into */
   upgradesTo: string[]
   /** sprite key + palette key used by the renderer */
@@ -68,6 +99,8 @@ export interface Duelist {
   level: number
   exp: number
   potential: Potential
+  /** passive id (kit slot 1), rolled once */
+  passive: string
   gear: Partial<Record<GearSlot, string>>
 }
 
@@ -76,6 +109,7 @@ export interface Candidate {
   name: string
   classId: string
   potential: Potential
+  passive: string
   price: number
 }
 
@@ -167,6 +201,9 @@ export interface Combatant {
   guard: number
   guardT: number
   level: number
+  passive?: string
+  /** second wind already used this battle */
+  windUsed: boolean
 }
 
 export type BattleEvent =
@@ -174,6 +211,7 @@ export type BattleEvent =
   | { t: 'damage'; dst: number; amount: number; crit: boolean }
   | { t: 'heal'; dst: number; amount: number }
   | { t: 'skill'; src: number; name: string; x: number; area?: number; kind: SkillKind }
+  | { t: 'passive'; src: number; name: string }
   | { t: 'death'; dst: number }
 
 export interface BattleState {

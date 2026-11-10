@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGame } from '@/stores/game'
-import { gatherCandidates, gatherCost, hire, getClass, computeStats } from '@/engine'
+import { gatherCandidates, gatherCost, hire, getClass, getPassive, computeStats } from '@/engine'
 import Portrait from './Portrait.vue'
 
 const game = useGame()
@@ -19,7 +19,8 @@ const s = computed(() => game.state)
         <div class="info">
           <div>{{ c.name }}</div>
           <div>{{ getClass(c.classId).name }} · <b :class="'pot-' + c.potential">{{ c.potential }}</b></div>
-          <div class="muted">HP {{ computeStats(c.classId, 1, c.potential).hp }} · ATK {{ computeStats(c.classId, 1, c.potential).atk }}</div>
+          <div :title="getPassive(c.passive)?.desc">Passive: {{ getPassive(c.passive)?.name ?? '—' }}</div>
+          <div class="muted">HP {{ computeStats(c.classId, 1, c.potential, [], c.passive).hp }} · ATK {{ computeStats(c.classId, 1, c.potential, [], c.passive).atk }}</div>
         </div>
         <button class="btn sm" :disabled="s.gold < c.price" @click="game.act(hire, c.id)">Hire {{ c.price.toLocaleString() }}g</button>
       </div>

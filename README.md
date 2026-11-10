@@ -23,7 +23,7 @@ recruit (Tavern) → build squads (COST limit) → auto-battle frontier waves
 |---|---|---|
 | Lanes / squads | up to 3 lanes, 4 duelists each, sum of COST ≤ Quarters limit | `engine/game.ts` `assign` |
 | COST | Rank I=1, II=2 (ref: III=3, IV=4, V=6) | `data/classes.ts` |
-| Combat | 1-D lane, move to range, attack on interval, +energy on attack/hit, skill at 100 | `engine/battle.ts` |
+| Combat | 1-D lane, move to range. 3-slot kit per duelist: random passive (rolled once), basic attack on interval (+energy), active cast the moment energy hits 100 | `engine/battle.ts`, `engine/data/passives.ts` |
 | Followers | +1 per cleared wave, capped at outpost requirement → unlocks Duel | `grantWaveRewards` |
 | Potential | F–S stat multiplier ×0.75–×1.25 | `data/world.ts` |
 | Quarters | level cap / squad count / COST limit table | `QUARTERS` |
