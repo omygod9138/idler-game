@@ -4,14 +4,16 @@ import type {
 import { CLASSES, RECRUITABLE, getClass } from './data/classes'
 import {
   DROP_CHANCE, FACILITY_INFO, FORGE_COST, GEAR_BASE, GEAR_SHARE, HIRE_COST, NAMES, OUTPOSTS, POTENTIALS,
-  QUARTERS, RANK_UP, RARITIES, RARITY_MULT, facilityUpgradeCost,
+  QUARTERS, RANK_UP, RARITIES, RARITY_MULT, SUBCLASSES_ENABLED, facilityUpgradeCost,
 } from './data/world'
 import { makeRng, pick, randInt, type Rng } from './rng'
 import { computeStats, duelistStats, expToNext } from './stats'
 import { createBattle, simulate, stepBattle, type CombatantSpec } from './battle'
 
 export const SAVE_VERSION = 1
-export const MAX_SQUAD = 4
+/** Every battle is TEAM_SIZE v TEAM_SIZE: squads hold this many duelists and waves spawn this many enemies. */
+export const TEAM_SIZE = 3
+export const MAX_SQUAD = TEAM_SIZE
 export const MAX_LANES = 3
 const SUBSTEP = 0.05
 const WAVE_COOLDOWN = 1.2
@@ -33,9 +35,12 @@ export function newGame(seed = Date.now() % 2147483647): GameState {
     log: [], stats: { kills: 0, waves: 0, avgWaveSeconds: 12 },
   }
   const rng = makeRng(s)
+  // Battles are 3v3, so the guild starts with a full base-class squad.
   const hero = addDuelist(s, rng, 'warrior', 'C')
-  s.lanes[0]!.squad.push(hero.id)
-  log(s, `${hero.name} the Warrior founds your guild.`, 'info')
+  const archer = addDuelist(s, rng, 'archer', 'D')
+  const priest = addDuelist(s, rng, 'priest', 'D')
+  s.lanes[0]!.squad.push(hero.id, archer.id, priest.id)
+  log(s, `${hero.name} the Warrior founds your guild with ${archer.name} and ${priest.name}.`, 'info')
   return s
 }
 
@@ -96,8 +101,7 @@ function allySpecs(s: GameState, lane: LaneState): CombatantSpec[] {
 
 function waveSpecs(s: GameState, rng: Rng): CombatantSpec[] {
   const o = outpost(s)
-  const n = randInt(rng, o.waveSize[0], o.waveSize[1])
-  return Array.from({ length: n }, () => {
+  return Array.from({ length: TEAM_SIZE }, () => {
     const classId = pick(rng, o.pool)
     const level = randInt(rng, o.levelMin, o.levelMax)
     return { name: CLASSES[classId]!.name, classId, level, stats: computeStats(classId, level, 'D') }
@@ -208,6 +212,20 @@ export function tick(s: GameState, dt: number): void {
   }
 }
 
+// ---------- save normalization ----------
+
+/** Bring an older save in line with current rules: squads capped at TEAM_SIZE, sub-classes reverted to their base class while locked. */
+export function normalize(s: GameState): void {
+  if (!SUBCLASSES_ENABLED) {
+    for (const d of Object.values(s.duelists)) {
+      if (getClass(d.classId).rank === 1) continue
+      const base = Object.values(CLASSES).find((c) => c.upgradesTo.includes(d.classId))
+      if (base) d.classId = base.id
+    }
+  }
+  for (const lane of s.lanes) if (lane.squad.length > MAX_SQUAD) lane.squad = lane.squad.slice(0, MAX_SQUAD)
+}
+
 // ---------- offline progress ----------
 
 export interface OfflineReport { seconds: number; waves: number; gold: number; followers: number; levels: number }
@@ -313,7 +331,7 @@ export function assign(s: GameState, duelistId: string, laneIdx: number | null):
   const lane = s.lanes[laneIdx]
   if (!lane || !activeLanes(s).includes(lane)) return 'Lane locked (upgrade Quarters)'
   if (lane === from) return null
-  if (lane.squad.length >= MAX_SQUAD) return 'Squad full (max 4)'
+  if (lane.squad.length >= MAX_SQUAD) return `Squad full (max ${MAX_SQUAD})`
   if (squadCost(s, lane) + getClass(d.classId).cost > quarters(s).cost) return 'Over COST limit'
   if (from) { from.squad = from.squad.filter((x) => x !== duelistId); from.battle = null; from.cooldown = WAVE_COOLDOWN }
   lane.squad.push(duelistId)
@@ -337,6 +355,7 @@ export function upgradeFacility(s: GameState, id: FacilityId): ActionResult {
 export function rankUp(s: GameState, duelistId: string, target: string): ActionResult {
   const d = s.duelists[duelistId]
   if (!d) return 'Unknown duelist'
+  if (!SUBCLASSES_ENABLED) return 'Sub-classes coming later'
   const cls = getClass(d.classId)
   if (!cls.upgradesTo.includes(target)) return 'Invalid path'
   const t = getClass(target)

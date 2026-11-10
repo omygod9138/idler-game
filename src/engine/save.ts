@@ -1,5 +1,5 @@
 import type { GameState } from './types'
-import { SAVE_VERSION, applyOffline, newGame, type OfflineReport } from './game'
+import { SAVE_VERSION, applyOffline, newGame, normalize, type OfflineReport } from './game'
 
 const KEY = 'idler-game:save'
 
@@ -22,6 +22,7 @@ export function load(store: Storage = localStorage, now = Date.now()): { state: 
   try {
     const s = JSON.parse(raw) as GameState
     if (s.version !== SAVE_VERSION) throw new Error('version mismatch')
+    normalize(s)
     const offline = applyOffline(s, (now - s.lastSavedAt) / 1000)
     return { state: s, offline }
   } catch (e) {

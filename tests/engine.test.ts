@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyOffline, assign, challengeDuel, computeStats, createBattle, gatherCandidates, hire, load, newGame,
-  OUTPOSTS, save, simulate, tick, upgradeFacility, forge, equip, rankUp,
+  OUTPOSTS, save, simulate, tick, upgradeFacility, forge, equip, rankUp, TEAM_SIZE, getClass, normalize,
 } from '../src/engine'
 import { makeRng } from '../src/engine/rng'
 
@@ -33,7 +33,7 @@ describe('battle', () => {
 })
 
 describe('game loop', () => {
-  it('starting warrior clears waves and earns followers', () => {
+  it('starting squad clears waves and earns followers', () => {
     const s = newGame(1)
     for (let i = 0; i < 600; i++) tick(s, 0.1) // 60s
     expect(s.stats.waves).toBeGreaterThan(0)
@@ -41,20 +41,27 @@ describe('game loop', () => {
     expect(s.gold).toBeGreaterThan(1200 - 1)
   })
 
-  it('enforces COST limit and squad size', () => {
+  it('starts with a full 3-duelist squad; squads hold at most TEAM_SIZE', () => {
     const s = newGame(2)
+    expect(s.lanes[0]!.squad).toHaveLength(TEAM_SIZE)
     s.gold = 1e6
-    for (let i = 0; i < 3; i++) { gatherCandidates(s); hire(s, s.candidates[0]!.id) }
-    const ids = Object.keys(s.duelists).filter((id) => !s.lanes[0]!.squad.includes(id))
-    expect(assign(s, ids[0]!, 0)).toBeNull()
-    expect(assign(s, ids[1]!, 0)).toBeNull()
-    expect(assign(s, ids[2]!, 0)).toBeNull() // cost 4 = limit
     gatherCandidates(s); hire(s, s.candidates[0]!.id)
-    const extra = Object.keys(s.duelists).find((id) => !s.lanes.some((l) => l.squad.includes(id)))!
-    expect(assign(s, extra, 0)).not.toBeNull()
+    const extra = Object.keys(s.duelists).find((id) => !s.lanes[0]!.squad.includes(id))!
+    expect(assign(s, extra, 0)).toMatch(/full/i)
     expect(assign(s, extra, 1)).toMatch(/locked/i) // quarters 0 = 1 lane
     expect(upgradeFacility(s, 'quarters')).toBeNull()
     expect(assign(s, extra, 1)).toBeNull()
+  })
+
+  it('every fight is 3v3: frontier waves and duels field TEAM_SIZE enemies', () => {
+    expect(TEAM_SIZE).toBe(3)
+    for (const o of OUTPOSTS) {
+      expect(o.duel.squad).toHaveLength(TEAM_SIZE)
+      for (const e of o.duel.squad) expect(getClass(e.classId).rank).toBe(1)
+    }
+    const s = newGame(6)
+    for (let i = 0; i < 50 && !s.lanes[0]!.battle; i++) tick(s, 0.1)
+    expect(s.lanes[0]!.battle!.units.filter((u) => u.side === 'enemy')).toHaveLength(TEAM_SIZE)
   })
 
   it('duel requires followers; winning advances outpost', () => {
@@ -68,18 +75,25 @@ describe('game loop', () => {
     expect(s.materials.bronzeBadge).toBe(1)
   })
 
-  it('rank-up needs class hall, level, badge', () => {
+  it('sub-classes are locked for now (base classes only)', () => {
     const s = newGame(4)
     const id = s.lanes[0]!.squad[0]!
-    s.gold = 1e6
-    expect(rankUp(s, id, 'knight')).toMatch(/Class Hall/)
-    s.facilities.classHall = 1
-    expect(rankUp(s, id, 'knight')).toMatch(/Lv/)
+    s.gold = 1e6; s.facilities.classHall = 1; s.materials.bronzeBadge = 1
     s.duelists[id]!.level = 20
-    expect(rankUp(s, id, 'knight')).toMatch(/Badge/)
-    s.materials.bronzeBadge = 1
-    expect(rankUp(s, id, 'knight')).toBeNull()
-    expect(s.duelists[id]!.classId).toBe('knight')
+    expect(rankUp(s, id, 'knight')).toMatch(/later/)
+    expect(s.duelists[id]!.classId).toBe('warrior')
+  })
+
+  it('normalize trims old 4-man squads and reverts sub-classes', () => {
+    const s = newGame(8)
+    s.gold = 1e6
+    for (let i = 0; i < 3; i++) { gatherCandidates(s); hire(s, s.candidates[0]!.id) }
+    s.lanes[0]!.squad = Object.keys(s.duelists) // 6: an old save could hold 4+
+    const hero = s.lanes[0]!.squad[0]!
+    s.duelists[hero]!.classId = 'knight'
+    normalize(s)
+    expect(s.lanes[0]!.squad).toHaveLength(TEAM_SIZE)
+    expect(s.duelists[hero]!.classId).toBe('warrior')
   })
 
   it('forge + equip raises stats', () => {

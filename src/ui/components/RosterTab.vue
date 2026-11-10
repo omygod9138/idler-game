@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useGame } from '@/stores/game'
 import {
   activeLanes, assign, dismiss, duelistStats, expToNext, getClass, power, quarters, rankUp, squadCost,
-  unequip, useTome, MAX_LANES, RANK_UP, RARITY_COLOR, type GearSlot,
+  unequip, useTome, MAX_LANES, MAX_SQUAD, RANK_UP, SUBCLASSES_ENABLED, RARITY_COLOR, type GearSlot,
 } from '@/engine'
 import Portrait from './Portrait.vue'
 
@@ -33,7 +33,7 @@ const slots: GearSlot[] = ['weapon', 'armor', 'accessory']
             <span v-else class="muted">Locked · upgrade Quarters</span>
           </div>
           <div class="slots">
-            <div v-for="k in 4" :key="k" class="slot">
+            <div v-for="k in MAX_SQUAD" :key="k" class="slot">
               <template v-if="s.lanes[i - 1]!.squad[k - 1]">
                 <button class="mini" @click="game.selectedId = s.lanes[i - 1]!.squad[k - 1]!">
                   <Portrait :class-id="s.duelists[s.lanes[i - 1]!.squad[k - 1]!]!.classId" :scale="2" />
@@ -101,7 +101,7 @@ const slots: GearSlot[] = ['weapon', 'armor', 'accessory']
         </div>
       </div>
 
-      <template v-if="sel.cls.upgradesTo.length">
+      <template v-if="SUBCLASSES_ENABLED && sel.cls.upgradesTo.length">
         <p class="h">CLASS HALL</p>
         <div v-for="t in sel.cls.upgradesTo" :key="t" class="row">
           <Portrait :class-id="t" :scale="2" />
