@@ -11,6 +11,18 @@ npm test           # engine tests (vitest)
 npm run build      # typecheck + production build
 ```
 
+### Dev tools (only in `npm run dev`, never in the build)
+
+- **Debug panel**: click **DEV** (bottom right) or press <kbd>`</kbd>. Time pause / 1x / 4x, add gold,
+  reset save, add any hero class at any level, put heroes straight into a lane (no COST check),
+  start a test fight vs any monsters / hero classes / the current outpost's duel squad (optional repeat),
+  and Kill / Heal-Revive / Skill on each unit of the current battle. **Warrior+Mage vs Troll** sets up a
+  long fight in one click. Tip: Pause, then Kill to watch a death clip without the fight ending.
+  Code: `src/dev/` (mounted from `App.vue` behind `import.meta.env.DEV`).
+- **Animation preview**: http://localhost:5173/anim-preview.html loops every east clip of each character
+  from its `metadata.json`, on a shared feet line, with zoom / FPS sliders. Use it after adding or
+  replacing PixelLab frames.
+
 ## Core loop
 
 ```

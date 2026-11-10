@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useGame } from '@/stores/game'
 import {
   activeLanes, assign, dismiss, duelistStats, expToNext, getClass, power, quarters, rankUp, squadCost,
@@ -8,7 +9,9 @@ import {
 import Portrait from './Portrait.vue'
 
 const game = useGame()
-const s = computed(() => game.state)
+// The store's shallowRef itself: triggerRef(state) re-runs the computeds below. A computed(() => game.state)
+// returns the same object every time, so it never notified them and the tab only refreshed on remount.
+const { state: s } = storeToRefs(game)
 const q = computed(() => quarters(s.value))
 const lanes = computed(() => activeLanes(s.value))
 const laneOf = (id: string) => s.value.lanes.findIndex((l) => l.squad.includes(id))
