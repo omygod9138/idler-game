@@ -206,8 +206,9 @@ export class Renderer {
 
   // ---------- geometry ----------
 
-  private feetY(u: { classId: string }) {
-    return GROUND_Y + (getClass(u.classId).row === 'front' ? 12 : 6)
+  /** Every unit stands on one baseline; rows differ only in x. */
+  private feetY(_u: { classId: string }) {
+    return GROUND_Y + 12
   }
   private height(classId: string) {
     const a = art(classId)
@@ -266,7 +267,7 @@ export class Renderer {
     fx.shake = Math.max(0, fx.shake - dt)
     c.save()
     if (fx.shake > 0) c.translate(fx.shake > 0.05 ? 1 : -0.5, 0)
-    const units = [...b.units].sort((a, z) => this.feetY(a) - this.feetY(z))
+    const units = [...b.units]
     for (const u of units) {
       const f = this.unitFx(fx, u)
       f.hurt = Math.max(0, f.hurt - dt)
